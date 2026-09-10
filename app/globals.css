@@ -1,0 +1,203 @@
+@import "tailwindcss";
+
+/* ---------------------------------------------------------------------------
+   3btafric token layer.
+
+   Values are taken from the 22bet Ghana mobile build, whose theme ships as HSL
+   triples behind numbered ramps (--primary-N, --cyber-N, --accent-N, --good-N).
+   The names below are ours; the values are that site's palette.
+
+   The whole identity is three hues:
+     185°  petrol teal, 85% saturated — every ground, from the page up to the
+           brand bar. 22bet does not use a neutral grey anywhere structural.
+       0°  coral red — the accent: CTAs, active nav, live prices.
+      82°  lime — "good": wins, rising odds, positive money.
+
+   Two things worth knowing when editing:
+
+   1. An odds button is DARKER than the row it sits in, not lighter. That
+      inversion is what makes the board read, and it survived the re-skin —
+      --odds-btn is the page ground, so buttons punch holes in the cards.
+
+   2. --accent (coral) and --lose (crimson) are close cousins by necessity;
+      22bet's own palette puts its accent and its "bad" a few degrees apart.
+      --lose is pulled toward 352° so a lost leg never reads as a button.
+   --------------------------------------------------------------------------- */
+:root {
+  /* Grounds — the 185° teal ramp */
+  --bg: #03272b;          /* cyber--60 — the page */
+  --bg-elevated: #053439; /* thirdPartyGray--35 — cards, panels, footer */
+  --surface: #08575e;     /* primary--40 — header, league bars */
+  --surface-2: #086068;   /* cyber-0 — chips, inputs */
+  --surface-3: #074e55;   /* thirdPartyGray-0 */
+  --line: #144b52;        /* dividers — the teal separator, dimmed for density */
+  --odds-btn: #03272b;    /* same ground as the page; see note 1 above */
+  --disabled: #334a4d;
+
+  /* Brand */
+  --accent: #ff5252;      /* accent-0 */
+  --accent-ink: #ffffff;  /* accent-0-clr — type on coral is white, not dark */
+  --accent-dim: #e64c4c;  /* accent--10 */
+  --focus: #ff7070;       /* accent-15 / clr-primary on dark */
+  /* The coral only reaches 2.6:1 against --surface, so it cannot carry text up
+     on the brand bar. This is the reference's own answer for that pairing
+     (primary--40-clr-primary): the accent washed out to a pale pink, 6:1. */
+  --accent-soft: #ffd1d1;
+
+  /* Type */
+  --text: #f0f4f5;        /* clr, eased off pure white for body copy */
+  --text-muted: #8dbec4;  /* clr-decent — pale teal, not grey */
+  --text-faint: #547f83;
+  --text-bright: #ffffff; /* clr */
+
+  /* State */
+  --win: #93c738;         /* good-0 */
+  --win-2: #7eab30;       /* good--15 */
+  --lose: #f04c62;        /* bad, pulled off the accent hue; see note 2 above */
+  --lose-bg: #390e14;
+  --pending: #fabd2e;
+  --live: #ff575a;        /* bad-0 — the brighter red, for the LIVE pulse */
+  --hint: #259ca7;        /* thirdPartyPrimary-0 — informational teal */
+  --hint-bg: #1f717a;
+
+  /* Form fields sit on the dark ground like the rest of the app. The reference
+     login uses a pale fill; four of those stacked on the register form read as
+     a different site, so the shell stays dark and the accent marks focus. */
+  --field: #052a2e;
+  --field-line: #1c585f;
+  --input: #031e21;
+  --input-ink: #f2f7f7;
+  --input-placeholder: #6c999d;
+
+  --radius: 4px;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-bg-elevated: var(--bg-elevated);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-line: var(--line);
+  --color-odds-btn: var(--odds-btn);
+  --color-disabled: var(--disabled);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-dim: var(--accent-dim);
+  --color-accent-soft: var(--accent-soft);
+  --color-text: var(--text);
+  --color-text-muted: var(--text-muted);
+  --color-text-faint: var(--text-faint);
+  --color-win: var(--win);
+  --color-lose: var(--lose);
+  --color-pending: var(--pending);
+  --color-live: var(--live);
+  --color-hint: var(--hint);
+  --color-field: var(--field);
+  --color-input: var(--input);
+}
+
+html {
+  background: var(--bg);
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  /* Roboto is the face the reference build ships, with a metric-compatible
+     fallback stack so the layout does not shift before the webfont lands. */
+  font-family: var(--font-roboto), "Segoe UI", Roboto, "Helvetica Neue", Arial,
+    "Noto Sans", sans-serif;
+  font-size: 12px;
+  line-height: 1.4;
+  overscroll-behavior-y: none;
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Sportsbook rows are dense; the scrollbar is noise. */
+.scroll-x {
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.scroll-x::-webkit-scrollbar {
+  display: none;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+.live-dot {
+  animation: blink 1.4s ease-in-out infinite;
+}
+
+/* Price movement, the way a board shows it: a brief tint, not a jump. */
+@keyframes odds-rise {
+  0% { color: var(--win); }
+  100% { color: var(--text); }
+}
+@keyframes odds-fall {
+  0% { color: var(--lose); }
+  100% { color: var(--text); }
+}
+.odds-rise { animation: odds-rise 1.2s ease-out; }
+.odds-fall { animation: odds-fall 1.2s ease-out; }
+
+/* ---------------------------------------------------------------------------
+   The win celebration.
+
+   A win should land, not fade in. The cup is thrown up with a little overshoot
+   and then left breathing; the burst turns behind it; the sparkles are offset
+   so they never blink together. Everything below is decoration, so all of it
+   stops for a player who has asked for less motion.
+   ------------------------------------------------------------------------- */
+
+@keyframes cup-in {
+  0%   { transform: scale(0.55) translateY(30px); opacity: 0; }
+  55%  { transform: scale(1.08) translateY(-8px); opacity: 1; }
+  75%  { transform: scale(0.97) translateY(2px); }
+  100% { transform: scale(1) translateY(0); opacity: 1; }
+}
+.win-cup { animation: cup-in 0.72s cubic-bezier(0.22, 0.9, 0.3, 1.2) both; }
+
+@keyframes cup-float {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-9px); }
+}
+.win-cup-float { animation: cup-float 3.4s ease-in-out 0.8s infinite; }
+
+@keyframes win-line-in {
+  from { transform: translateY(14px); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
+}
+.win-line { animation: win-line-in 0.5s ease-out both; }
+
+@keyframes confetti-fall {
+  0%   { transform: translate3d(0, -12vh, 0) rotate(0deg); opacity: 0; }
+  8%   { opacity: 1; }
+  100% { transform: translate3d(var(--drift, 0px), 104vh, 0) rotate(760deg); opacity: 0; }
+}
+.confetti-piece {
+  position: absolute;
+  top: 0;
+  width: 8px;
+  height: 13px;
+  border-radius: 2px;
+  animation-name: confetti-fall;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .win-cup,
+  .win-cup-float,
+  .win-line,
+  .confetti-piece {
+    animation: none;
+  }
+  .confetti-piece { display: none; }
+}

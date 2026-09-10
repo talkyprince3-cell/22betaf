@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 44" role="img" aria-label="3btafric">
+  <defs>
+    <linearGradient id="stk" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FF5252"/>
+      <stop offset="1" stop-color="#DD2C44"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="4" width="36" height="36" rx="9" fill="url(#stk)"/>
+  <text x="18" y="31" text-anchor="middle" font-family="ui-sans-serif,system-ui,Segoe UI,Roboto,Arial,sans-serif" font-size="25" font-weight="800" fill="#FFFFFF">3</text>
+  <text x="44" y="29" font-family="ui-sans-serif,system-ui,Segoe UI,Roboto,Arial,sans-serif" font-size="20" font-weight="800" letter-spacing="-0.3">
+    <tspan fill="#F0F4F5">3bt</tspan><tspan fill="#FF5252">afric</tspan>
+  </text>
+</svg>
