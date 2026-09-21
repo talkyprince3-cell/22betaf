@@ -3,9 +3,11 @@
 -- the manual deposit screen. Both are carried over here so a running
 -- deployment says the new name without anyone editing a row by hand.
 
-alter table matches alter column league set default 'Stakeza Special';
+alter table custom_matches alter column league set default 'Stakeza Special';
 
-update matches set league = 'Stakeza Special' where league = 'Betlixx Special';
+update custom_matches
+   set league = 'Stakeza Special'
+ where league = 'Betlixx Special';
 
 update app_settings
    set value = 'Stakeza Ghana', updated_at = now()

@@ -5,9 +5,9 @@
 -- The updates match on both prior names, so a deployment that never ran 0012
 -- and one that did both land on the same rows.
 
-alter table matches alter column league set default '3btafric Special';
+alter table custom_matches alter column league set default '3btafric Special';
 
-update matches
+update custom_matches
    set league = '3btafric Special'
  where league in ('Stakeza Special', 'Betlixx Special');
 
