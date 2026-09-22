@@ -33,6 +33,7 @@ interface Summary {
   tierPoints: number;
   gateLabel: string;
   unlocked: boolean;
+  canWithdraw: boolean;
 }
 
 export function AccountDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -67,14 +68,16 @@ export function AccountDrawer({ open, onClose }: { open: boolean; onClose: () =>
 
         const balance = Number(me.user.balance);
         setBalance(balance);
+        const canWithdraw = Boolean(me.partner);
         setSummary({
           balance,
-          // Nothing is withdrawable until the gate opens.
-          withdrawable: me.withdrawal.unlocked ? balance : 0,
+          // A normal account cannot withdraw. A sub-admin still waits on the gate.
+          withdrawable: canWithdraw && me.withdrawal.unlocked ? balance : 0,
           openBets: (bets.bets ?? []).filter((b: { status: string }) => b.status === "pending").length,
           tierPoints: me.tierPoints ?? 0,
           gateLabel: me.withdrawal.progress.label,
-          unlocked: me.withdrawal.unlocked,
+          unlocked: canWithdraw && me.withdrawal.unlocked,
+          canWithdraw,
         });
       } catch {
         /* the panel falls back to the session balance */
@@ -148,7 +151,7 @@ export function AccountDrawer({ open, onClose }: { open: boolean; onClose: () =>
               <p className="mt-0.5 text-[20px] font-black leading-none text-[var(--text-bright)]">
                 {hidden ? "••••" : formatMoney(withdrawable, player.currency)}
               </p>
-              {summary && !summary.unlocked && (
+              {summary?.canWithdraw && !summary.unlocked && (
                 <p className="mt-1 text-[11px] text-[var(--pending)]">{summary.gateLabel}</p>
               )}
             </div>
@@ -170,7 +173,9 @@ export function AccountDrawer({ open, onClose }: { open: boolean; onClose: () =>
           {/* Actions */}
           <div className="grid grid-cols-4 gap-1 px-2 py-5">
             <Action href="/deposit" icon={<Wallet size={22} strokeWidth={1.6} />} label="Deposit" onGo={onClose} />
-            <Action href="/withdraw" icon={<Banknote size={22} strokeWidth={1.6} />} label="Withdraw" onGo={onClose} />
+            {summary?.canWithdraw && (
+              <Action href="/withdraw" icon={<Banknote size={22} strokeWidth={1.6} />} label="Withdraw" onGo={onClose} />
+            )}
             <Action
               href="/transactions"
               icon={<CircleDollarSign size={22} strokeWidth={1.6} />}

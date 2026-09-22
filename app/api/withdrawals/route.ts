@@ -36,6 +36,19 @@ export async function POST(req: Request) {
 
   if (!user) return NextResponse.json({ error: "Sign in first" }, { status: 401 });
 
+  // Withdrawals, and the notification that follows one, are for the linked
+  // sub-admin betting account. A normal player id is refused before any
+  // payout row is written, so the client never receives an amount to display.
+  const { data: subAdmin } = await supabase
+    .from("sub_admins")
+    .select("id")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (!subAdmin) {
+    return NextResponse.json({ error: "Only a sub-admin account can withdraw." }, { status: 403 });
+  }
+
   const gate = checkWithdrawalGate(user, amount, {
     number: body.payoutNumber,
     bank: body.payoutBank,

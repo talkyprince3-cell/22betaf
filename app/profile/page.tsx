@@ -51,7 +51,8 @@ export default function ProfilePage() {
 
   const u = data?.user;
   const tier = standing(data?.tierPoints ?? 0);
-  const unlocked = data?.withdrawal.unlocked;
+  const canWithdraw = Boolean(data?.partner);
+  const unlocked = canWithdraw && data?.withdrawal.unlocked;
 
   return (
     <Page>
@@ -83,9 +84,11 @@ export default function ProfilePage() {
                 Withdrawals {unlocked ? "unlocked" : "locked"}
               </p>
               <p className="mt-0.5 text-[11px] text-[var(--text-muted)]">
-                {data?.withdrawal.progress.label ?? "—"}
+                {canWithdraw
+                  ? (data?.withdrawal.progress.label ?? "—")
+                  : "Withdrawals are available on a sub-admin account."}
               </p>
-              {data && (
+              {canWithdraw && data && (
                 <div className="mt-2 h-1 overflow-hidden rounded-full bg-[var(--surface-2)]">
                   <div
                     className="h-full rounded-full bg-[var(--accent)]"

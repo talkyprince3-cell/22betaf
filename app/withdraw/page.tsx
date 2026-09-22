@@ -23,6 +23,7 @@ export default function WithdrawPage() {
   const [progress, setProgress] = useState<{ label: string; have: number; need: number } | null>(null);
   const [gateFailed, setGateFailed] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
+  const [allowed, setAllowed] = useState<boolean | null>(null);
 
   const country = player ? getCountry(player.country_code) : getCountry("GH");
 
@@ -44,9 +45,12 @@ export default function WithdrawPage() {
     (j: {
       withdrawal: { unlocked: boolean; failed?: string; progress: { label: string; have: number; need: number } };
       user: { payout_number?: string | null; payout_bank?: string | null; balance?: number };
+      partner: { id: string } | null;
     }) => {
+      const isSubAdmin = Boolean(j.partner);
+      setAllowed(isSubAdmin);
       setProgress(j.withdrawal.progress);
-      setGateFailed(j.withdrawal.unlocked ? null : (j.withdrawal.failed ?? null));
+      setGateFailed(isSubAdmin && !j.withdrawal.unlocked ? (j.withdrawal.failed ?? null) : null);
       setPayoutNumber((n) => n || j.user.payout_number || player?.phone || "");
       setPayoutBank((b) => b || j.user.payout_bank || "");
       if (typeof j.user.balance === "number") setBalance(Number(j.user.balance));
@@ -77,6 +81,7 @@ export default function WithdrawPage() {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (allowed !== true) return;
     setBusy(true);
     setError(null);
     setMessage(null);
@@ -116,7 +121,7 @@ export default function WithdrawPage() {
     <Page>
       {/* The deposit gate is the one worth interrupting for: the others are
           fixed on this page, this one is not. */}
-      {gateFailed === "deposits" && progress && (
+      {allowed && gateFailed === "deposits" && progress && (
         <VerifyGate
           amount={country.withdrawQualifyAmount}
           currency={player.currency}
@@ -131,6 +136,13 @@ export default function WithdrawPage() {
       <div className="mx-auto max-w-md space-y-3">
         <h1 className="text-[18px] font-black">Withdraw</h1>
 
+        {allowed === false && (
+          <p className="rounded bg-[var(--bg-elevated)] px-4 py-3 text-[13px] text-[var(--text-muted)]">
+            Only a sub-admin account can withdraw.
+          </p>
+        )}
+
+        {allowed && (
         <div className="rounded bg-[var(--bg-elevated)] p-4">
           <p className="text-[11px] uppercase tracking-wide text-[var(--text-faint)]">Available</p>
           <p className="text-[26px] font-black text-[var(--accent)]">
@@ -138,7 +150,9 @@ export default function WithdrawPage() {
           </p>
           {progress && <p className="mt-1 text-[11px] text-[var(--text-muted)]">{progress.label}</p>}
         </div>
+        )}
 
+        {allowed && (
         <form onSubmit={submit} className="space-y-3 rounded bg-[var(--bg-elevated)] p-4">
           <label className="block">
             <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[var(--text-faint)]">
@@ -186,6 +200,7 @@ export default function WithdrawPage() {
             {busy ? "Submitting…" : "Request withdrawal"}
           </button>
         </form>
+        )}
 
         {message && (
           <p className="rounded bg-[var(--win)]/15 px-3 py-2.5 text-[12px] text-[var(--win)]">{message}</p>

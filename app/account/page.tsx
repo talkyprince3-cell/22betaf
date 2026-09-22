@@ -187,7 +187,7 @@ function AccountView() {
             </p>
           </div>
 
-          <div className="mt-3.5 grid grid-cols-2 gap-3">
+          <div className={`mt-3.5 grid gap-3 ${data?.partner ? "grid-cols-2" : "grid-cols-1"}`}>
             <Link
               href="/deposit"
               className="flex items-center justify-center gap-2 rounded-[4px] bg-[var(--accent)] py-3 text-[15px] font-bold text-[var(--accent-ink)]"
@@ -195,13 +195,15 @@ function AccountView() {
               <Wallet size={18} strokeWidth={2} />
               Deposit
             </Link>
-            <Link
-              href="/withdraw"
-              className="flex items-center justify-center gap-2 rounded-[4px] py-3 text-[15px] font-bold text-[var(--text-bright)] ring-1 ring-[var(--text-bright)]"
-            >
-              <Banknote size={18} strokeWidth={2} />
-              Withdraw
-            </Link>
+            {data?.partner && (
+              <Link
+                href="/withdraw"
+                className="flex items-center justify-center gap-2 rounded-[4px] py-3 text-[15px] font-bold text-[var(--text-bright)] ring-1 ring-[var(--text-bright)]"
+              >
+                <Banknote size={18} strokeWidth={2} />
+                Withdraw
+              </Link>
+            )}
           </div>
         </section>
 
