@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Wallet, ArrowRight } from "lucide-react";
+import { Wallet, ArrowRight, Banknote } from "lucide-react";
 import { useSession } from "@/lib/store";
 import { allCountries, getCountry, formatMoney } from "@/lib/countries";
 
@@ -102,8 +102,8 @@ export function WalletPanel({
     }
   };
 
-  /** Sign into the player session and go to the board. */
-  const play = () => {
+  /** Sign into the betting account, then open a page on the main site. */
+  const enterSite = (path: string) => {
     if (!wallet) return;
     signIn({
       id: wallet.id,
@@ -114,7 +114,7 @@ export function WalletPanel({
       currency: wallet.currency,
       balance: Number(wallet.balance),
     });
-    router.push("/");
+    router.push(path);
   };
 
   // --- Not opened yet ------------------------------------------------------
@@ -129,7 +129,7 @@ export function WalletPanel({
         <div className="space-y-3 p-4">
           <p className="text-[12px] leading-relaxed text-[var(--text-muted)]">
             Open a betting account on your own partner login. Same password, and you can move between
-            here and the board whenever you like.
+            here and the main site whenever you like. Withdraw is on that account.
           </p>
 
           <div className="grid gap-2 sm:grid-cols-2">
@@ -199,13 +199,22 @@ export function WalletPanel({
             </p>
           </div>
 
-          <button
-            onClick={play}
-            className="flex items-center gap-1.5 rounded bg-[var(--accent)] px-4 py-2.5 text-[13px] font-black text-[var(--accent-ink)]"
-          >
-            Go to the board
-            <ArrowRight size={15} strokeWidth={2.4} />
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => enterSite("/withdraw")}
+              className="flex items-center gap-1.5 rounded bg-[var(--accent)] px-4 py-2.5 text-[13px] font-black text-[var(--accent-ink)]"
+            >
+              <Banknote size={15} strokeWidth={2.2} />
+              Withdraw
+            </button>
+            <button
+              onClick={() => enterSite("/")}
+              className="flex items-center gap-1.5 rounded px-4 py-2.5 text-[13px] font-black text-[var(--text-bright)] ring-1 ring-[var(--line)]"
+            >
+              Go to the board
+              <ArrowRight size={15} strokeWidth={2.4} />
+            </button>
+          </div>
         </div>
 
         <form onSubmit={credit} className="space-y-2 rounded bg-[var(--surface)] p-3">
