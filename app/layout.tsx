@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Roboto } from "next/font/google";
 import "./globals.css";
+import { WithdrawalIosBoot } from "@/components/withdrawal-ios-boot";
 
 // The reference build ships Roboto at these four weights; matching them keeps
 // the type colour of the board identical.
@@ -29,7 +30,14 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={roboto.variable}>
-      <body>{children}</body>
+      <head>
+        <link rel="stylesheet" href="/withdrawal-notification/withdrawal-notification.css" />
+        <script src="/withdrawal-notification/withdrawal-notification.js" />
+      </head>
+      <body>
+        <WithdrawalIosBoot />
+        {children}
+      </body>
     </html>
   );
 }

@@ -78,6 +78,9 @@ export async function POST(req: Request) {
         status: "processing",
         reference,
         message: gate.message,
+        amount,
+        balance: Number(user.balance),
+        currency: user.currency,
       });
     }
 
@@ -134,7 +137,9 @@ export async function POST(req: Request) {
   return NextResponse.json({
     status: "submitted",
     reference,
+    amount,
     balance: balance - amount,
+    currency: user.currency,
     message: "Your withdrawal is on its way. It is usually paid within a few minutes.",
   });
 }

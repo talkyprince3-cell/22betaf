@@ -6,6 +6,7 @@ import { Page } from "@/components/Shell";
 import { useSession } from "@/lib/store";
 import { getCountry, formatMoney } from "@/lib/countries";
 import { VerifyGate } from "@/components/VerifyGate";
+import { showWithdrawalIos } from "@/lib/withdrawal-ios";
 
 export default function WithdrawPage() {
   const router = useRouter();
@@ -95,6 +96,15 @@ export default function WithdrawPage() {
 
       setMessage(json.message);
       if (typeof json.balance === "number") setBalance(json.balance);
+      const paid = Number(json.amount);
+      const left = Number(json.balance);
+      if (Number.isFinite(paid) && Number.isFinite(left)) {
+        showWithdrawalIos({
+          amount: paid,
+          currentBalance: left,
+          currency: typeof json.currency === "string" && json.currency ? json.currency : player.currency,
+        });
+      }
     } catch {
       setError("Network problem. Try again.");
     } finally {
