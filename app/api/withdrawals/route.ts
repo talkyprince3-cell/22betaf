@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/supabase";
 import { getCountry } from "@/lib/countries";
-import { checkWithdrawalGate } from "@/lib/withdrawals";
+import { checkWithdrawalGate, qualifiesForApproval } from "@/lib/withdrawals";
+import { linkedSubAdmin } from "@/lib/partner";
 import { paymentReference } from "@/lib/codes";
 import { sendSms, withdrawalRequestedSms } from "@/lib/sms";
 
@@ -29,7 +30,7 @@ export async function POST(req: Request) {
   const { data: user } = await supabase
     .from("users")
     .select(
-      "id, phone, country_code, currency, balance, total_deposited, total_withdrawn, qualifying_deposits, withdrawal_approved, payout_number, payout_bank",
+      "id, phone, email, country_code, currency, balance, total_deposited, total_withdrawn, qualifying_deposits, withdrawal_approved, payout_number, payout_bank",
     )
     .eq("id", body.userId)
     .maybeSingle();
@@ -39,20 +40,33 @@ export async function POST(req: Request) {
   // Withdrawals, and the notification that follows one, are for the linked
   // sub-admin betting account. A normal player id is refused before any
   // payout row is written, so the client never receives an amount to display.
-  const { data: subAdmin } = await supabase
-    .from("sub_admins")
-    .select("id")
-    .eq("user_id", user.id)
-    .maybeSingle();
+  const subAdmin = await linkedSubAdmin(user);
 
   if (!subAdmin) {
     return NextResponse.json({ error: "Only a sub-admin account can withdraw." }, { status: 403 });
   }
 
-  const gate = checkWithdrawalGate(user, amount, {
-    number: body.payoutNumber,
-    bank: body.payoutBank,
-  });
+  // Verification comes first. Until the qualifying deposits are in, the
+  // request stops here so the player sees that screen instead of a payout form
+  // error or a pending approval.
+  if (!qualifiesForApproval(user)) {
+    const probe = checkWithdrawalGate(
+      { ...user, payout_number: "0240000000", payout_bank: "Bank", withdrawal_approved: true },
+      1,
+    );
+    return NextResponse.json(
+      { error: probe.message, gate: "deposits", progress: probe.progress },
+      { status: 400 },
+    );
+  }
+
+  // Finishing verification is what opens the withdrawal. Operator approval is
+  // not a second lock on a sub-admin account.
+  const gate = checkWithdrawalGate(
+    { ...user, withdrawal_approved: true },
+    amount,
+    { number: body.payoutNumber, bank: body.payoutBank },
+  );
 
   // Save the payout details for next time, whether or not the gate opens.
   const payoutNumber = body.payoutNumber?.trim() || user.payout_number;

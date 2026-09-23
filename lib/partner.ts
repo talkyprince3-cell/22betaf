@@ -52,6 +52,78 @@ export async function currentPartner(): Promise<PartnerRow | null> {
   return partner;
 }
 
+function samePhone(a: string | null | undefined, b: string | null | undefined) {
+  const left = (a ?? "").replace(/\D/g, "");
+  const right = (b ?? "").replace(/\D/g, "");
+  if (left.length < 9 || right.length < 9) return false;
+  return left === right || left.endsWith(right.slice(-9)) || right.endsWith(left.slice(-9));
+}
+
+/**
+ * The sub-admin row for this betting account.
+ *
+ * The link is usually sub_admins.user_id. A partner who already had a player
+ * login is matched by email or phone and linked, so withdraw can see them.
+ */
+export async function linkedSubAdmin(user: {
+  id: string;
+  email?: string | null;
+  phone?: string | null;
+}): Promise<{ id: string } | null> {
+  const supabase = db();
+  if (!supabase) return null;
+
+  const { data: byUser } = await supabase
+    .from("sub_admins")
+    .select("id")
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (byUser) return byUser;
+
+  const email = user.email?.trim().toLowerCase();
+  if (email) {
+    const { data: byEmail } = await supabase
+      .from("sub_admins")
+      .select("id, user_id")
+      .eq("email", email)
+      .maybeSingle();
+    if (byEmail && (!byEmail.user_id || byEmail.user_id === user.id)) {
+      if (!byEmail.user_id) {
+        await supabase.from("sub_admins").update({ user_id: user.id }).eq("id", byEmail.id);
+      }
+      return { id: byEmail.id };
+    }
+  }
+
+  if (user.phone) {
+    const { data: rows } = await supabase.from("sub_admins").select("id, user_id, phone");
+    const byPhone = (rows ?? []).find(
+      (row) => (!row.user_id || row.user_id === user.id) && samePhone(row.phone, user.phone),
+    );
+    if (byPhone) {
+      if (!byPhone.user_id) {
+        await supabase.from("sub_admins").update({ user_id: user.id }).eq("id", byPhone.id);
+      }
+      return { id: byPhone.id };
+    }
+  }
+
+  const cookiePartner = await currentPartner();
+  if (!cookiePartner || (cookiePartner.user_id && cookiePartner.user_id !== user.id)) return null;
+  if (
+    cookiePartner.user_id === user.id ||
+    (email && cookiePartner.email === email) ||
+    samePhone(cookiePartner.phone, user.phone)
+  ) {
+    if (!cookiePartner.user_id) {
+      await supabase.from("sub_admins").update({ user_id: user.id }).eq("id", cookiePartner.id);
+    }
+    return { id: cookiePartner.id };
+  }
+
+  return null;
+}
+
 /** Strip the hash before anything is returned to a client. */
 export function publicPartner(p: PartnerRow) {
   const { password_hash: _hash, ...safe } = p;

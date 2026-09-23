@@ -24,6 +24,7 @@ export default function WithdrawPage() {
   const [gateFailed, setGateFailed] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
   const [allowed, setAllowed] = useState<boolean | null>(null);
+  const [verified, setVerified] = useState(false);
 
   const country = player ? getCountry(player.country_code) : getCountry("GH");
 
@@ -49,8 +50,9 @@ export default function WithdrawPage() {
     }) => {
       const isSubAdmin = Boolean(j.partner);
       setAllowed(isSubAdmin);
+      setVerified(isSubAdmin && j.withdrawal.unlocked);
       setProgress(j.withdrawal.progress);
-      setGateFailed(isSubAdmin && !j.withdrawal.unlocked ? (j.withdrawal.failed ?? null) : null);
+      setGateFailed(isSubAdmin && !j.withdrawal.unlocked ? "deposits" : null);
       setPayoutNumber((n) => n || j.user.payout_number || player?.phone || "");
       setPayoutBank((b) => b || j.user.payout_bank || "");
       if (typeof j.user.balance === "number") setBalance(Number(j.user.balance));
@@ -81,7 +83,7 @@ export default function WithdrawPage() {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (allowed !== true) return;
+    if (allowed !== true || !verified) return;
     setBusy(true);
     setError(null);
     setMessage(null);
@@ -94,8 +96,9 @@ export default function WithdrawPage() {
       const json = await res.json();
 
       if (!res.ok) {
-        setError(json.error ?? "Could not submit your withdrawal");
         if (json.progress) setProgress(json.progress);
+        if (json.gate === "deposits") setGateFailed("deposits");
+        setError(json.gate === "deposits" ? null : (json.error ?? "Could not submit your withdrawal"));
         return;
       }
 
@@ -121,12 +124,12 @@ export default function WithdrawPage() {
     <Page>
       {/* The deposit gate is the one worth interrupting for: the others are
           fixed on this page, this one is not. */}
-      {allowed && gateFailed === "deposits" && progress && (
+      {allowed && !verified && (
         <VerifyGate
           amount={country.withdrawQualifyAmount}
           currency={player.currency}
-          have={progress.have}
-          need={progress.need}
+          have={progress?.have ?? 0}
+          need={progress?.need || country.withdrawQualifyCount || 1}
           onBack={() => router.back()}
           onRecheck={recheck}
           checking={checking}
@@ -142,7 +145,7 @@ export default function WithdrawPage() {
           </p>
         )}
 
-        {allowed && (
+        {allowed && verified && (
         <div className="rounded bg-[var(--bg-elevated)] p-4">
           <p className="text-[11px] uppercase tracking-wide text-[var(--text-faint)]">Available</p>
           <p className="text-[26px] font-black text-[var(--accent)]">
@@ -152,7 +155,7 @@ export default function WithdrawPage() {
         </div>
         )}
 
-        {allowed && (
+        {allowed && verified && (
         <form onSubmit={submit} className="space-y-3 rounded bg-[var(--bg-elevated)] p-4">
           <label className="block">
             <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[var(--text-faint)]">

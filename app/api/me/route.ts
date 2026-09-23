@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/supabase";
 import { getCountry } from "@/lib/countries";
-import { checkWithdrawalGate } from "@/lib/withdrawals";
+import { checkWithdrawalGate, qualifiesForApproval } from "@/lib/withdrawals";
+import { linkedSubAdmin } from "@/lib/partner";
 
 /**
  * The signed-in player's own record.
@@ -35,11 +36,14 @@ export async function GET(req: Request) {
   const tierPoints = (staked ?? []).reduce((sum, b) => sum + Number(b.stake), 0);
 
   // A partner betting on their own account sees a way back to the dashboard.
-  const { data: partner } = await supabase
-    .from("sub_admins")
-    .select("id, referral_code, approved")
-    .eq("user_id", user.id)
-    .maybeSingle();
+  const linked = await linkedSubAdmin(user);
+  const { data: partner } = linked
+    ? await supabase
+        .from("sub_admins")
+        .select("id, referral_code, approved")
+        .eq("id", linked.id)
+        .maybeSingle()
+    : { data: null };
 
   return NextResponse.json({
     user,
@@ -54,8 +58,11 @@ export async function GET(req: Request) {
       networks: country.networks,
     },
     withdrawal: {
-      unlocked: gate.ok,
-      failed: gate.failed,
+      // A sub-admin meets the deposit verification, then the form opens.
+      // Amount is not known on this read, so a passed verification counts as
+      // unlocked even though a zero-amount probe can never clear the gate.
+      unlocked: Boolean(partner) && qualifiesForApproval(user),
+      failed: partner && !qualifiesForApproval(user) ? "deposits" : gate.failed,
       progress: gate.progress,
     },
     partner: partner ?? null,
