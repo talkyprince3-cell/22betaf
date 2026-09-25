@@ -19,6 +19,26 @@ export function startOfToday(now = new Date()): string {
   return midnight.toISOString();
 }
 
+/**
+ * A money amount from the environment, or the fallback.
+ *
+ * `Number(process.env.X ?? fallback)` looks like it does this and does not: `??`
+ * only catches unset, so a variable that exists but is empty — which is what a
+ * hosting dashboard gives you for a field someone cleared — reads as 0, and a
+ * typo reads as NaN. Both pass silently, and for a limit that means either
+ * nothing works or nothing is capped.
+ */
+function envAmount(value: string | undefined, fallback: number): number {
+  const n = Number(value);
+  if (value === undefined || value.trim() === "" || !Number.isFinite(n) || n < 0) {
+    if (value !== undefined && value.trim() !== "") {
+      console.warn("[money] ignoring unusable amount from the environment", value);
+    }
+    return fallback;
+  }
+  return n;
+}
+
 /** Sum rows of {amount, currency} per currency, rounded to the minor unit. */
 export function totalPerCurrency(
   rows: { amount: number | string; currency: string }[] | null | undefined,
@@ -140,7 +160,7 @@ export async function applyDepositCredit(opts: {
   // --- Step 2: one-time welcome bonus ------------------------------------
   // A pure gift. It does not count toward verification and earns no commission.
   if (isFirst && !user.bonus_paid) {
-    const bonus = Number(process.env.FIRST_DEPOSIT_BONUS ?? 100);
+    const bonus = envAmount(process.env.FIRST_DEPOSIT_BONUS, 100);
     if (bonus > 0) {
       try {
         const withBonus = balance + bonus;

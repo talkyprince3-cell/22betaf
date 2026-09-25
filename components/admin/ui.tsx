@@ -83,10 +83,30 @@ export function Panel({
   );
 }
 
+/**
+ * The console's data table, in two shapes.
+ *
+ * Above the breakpoint it is a table. Below it — which is most of the phones an
+ * operator actually carries — a 46rem-wide table in a sideways scroller means
+ * seeing a third of the columns at a time and swiping to reach the buttons,
+ * which are always in the last one. So each row becomes a card with its values
+ * labelled instead.
+ *
+ * The labels come from `head` through custom properties rather than markup, so
+ * every screen already using this component gets the card layout without its
+ * rows being rewritten. It relies on each row having one cell per heading,
+ * which is what all six screens do.
+ */
 export function Table({ head, children }: { head: string[]; children: React.ReactNode }) {
+  const labels = Object.fromEntries(
+    // CSS `content` needs a quoted string, and a heading with a quote in it
+    // would otherwise end the value early.
+    head.map((h, i) => [`--col-${i + 1}`, `"${h.replace(/["\\]/g, "\\$&")}"`]),
+  ) as React.CSSProperties;
+
   return (
     <div className="scroll-x">
-      <table className="w-full min-w-[46rem] text-left text-[12px]">
+      <table className="admin-table w-full text-left text-[12px] md:min-w-[46rem]" style={labels}>
         <thead>
           <tr className="border-b border-[var(--line)] text-[10px] uppercase tracking-wide text-[var(--text-faint)]">
             {head.map((h) => (
