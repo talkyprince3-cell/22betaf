@@ -32,12 +32,13 @@ function HeaderActions({ onOpenAccount }: { onOpenAccount: () => void }) {
   // Keep the header balance honest without the player having to reload. The
   // same read carries the open-ticket count for the My Bets badge, so the
   // badge follows the balance rather than polling on its own.
+  const playerId = player?.id;
   useEffect(() => {
-    if (!player) return;
+    if (!playerId) return;
     let alive = true;
     const tick = async () => {
       try {
-        const res = await fetch(`/api/me?userId=${player.id}`);
+        const res = await fetch(`/api/me?userId=${playerId}`);
         if (!res.ok) return;
         const json = await res.json();
         if (!alive) return;
@@ -53,7 +54,7 @@ function HeaderActions({ onOpenAccount }: { onOpenAccount: () => void }) {
       alive = false;
       clearInterval(timer);
     };
-  }, [player?.id, setBalance, setOpenBets, player]);
+  }, [playerId, setBalance, setOpenBets]);
 
   if (!hydrated) return <div className="h-7 w-32 rounded bg-[var(--surface-2)]" />;
 

@@ -28,15 +28,16 @@ export default function WithdrawPage() {
     if (hydrated && !player) router.replace("/login");
   }, [hydrated, player, router]);
 
+  const playerId = player?.id;
   const fetchMe = useCallback(async () => {
-    if (!player) return null;
+    if (!playerId) return null;
     try {
-      const res = await fetch(`/api/me?userId=${player.id}`);
+      const res = await fetch(`/api/me?userId=${playerId}`);
       return res.ok ? await res.json() : null;
     } catch {
       return null;
     }
-  }, [player]);
+  }, [playerId]);
 
   const apply = useCallback(
     (j: {
@@ -51,13 +52,15 @@ export default function WithdrawPage() {
       setPayoutBank((b) => b || j.user.payout_bank || "");
       if (typeof j.user.balance === "number") setBalance(Number(j.user.balance));
     },
-    [player, setBalance],
+    [player?.phone, setBalance],
   );
 
   useEffect(() => {
     let alive = true;
     void fetchMe().then((j) => {
-      if (alive && j) apply(j);
+      if (!alive) return;
+      if (j) apply(j);
+      else setAllowed(false);
     });
     return () => {
       alive = false;
@@ -108,6 +111,12 @@ export default function WithdrawPage() {
     <Page>
       <div className="mx-auto max-w-md space-y-3">
         <h1 className="text-[18px] font-black">Withdraw</h1>
+
+        {allowed === null && (
+          <p className="rounded bg-[var(--bg-elevated)] px-4 py-3 text-[13px] text-[var(--text-muted)]">
+            Loading your wallet…
+          </p>
+        )}
 
         {allowed === false && (
           <p className="rounded bg-[var(--bg-elevated)] px-4 py-3 text-[13px] text-[var(--text-muted)]">

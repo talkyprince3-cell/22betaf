@@ -159,7 +159,10 @@ export const useSession = create<SessionState>()(
       signIn: (player) => set({ player }),
       signOut: () => set({ player: null, openBets: 0 }),
       setBalance: (balance) =>
-        set((s) => (s.player ? { player: { ...s.player, balance } } : s)),
+        set((s) => {
+          if (!s.player || s.player.balance === balance) return s;
+          return { player: { ...s.player, balance } };
+        }),
       setOpenBets: (openBets) => set({ openBets }),
       addOpenBets: (delta) => set((s) => ({ openBets: Math.max(0, s.openBets + delta) })),
       markHydrated: () => set({ hydrated: true }),
