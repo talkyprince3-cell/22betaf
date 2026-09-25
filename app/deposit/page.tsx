@@ -11,18 +11,14 @@ import {
   ChevronRight,
   MapPin,
   Check,
-  Upload,
 } from "lucide-react";
 import { useSession } from "@/lib/store";
 import { getCountry, formatMoney, maskPhoneTail } from "@/lib/countries";
 
-type Rail = "momo" | "manual";
-
 /**
  * The deposit screen.
  *
- * Two rails behind two tabs: the country's instant gateway, and the manual
- * transfer that every market falls back to. The limits and fee notes at the
+ * One rail: the country's instant gateway. The limits and fee notes at the
  * bottom are read from the same country configuration the endpoint enforces,
  * so what a player is told is what actually happens.
  */
@@ -32,7 +28,6 @@ export default function DepositPage() {
   const hydrated = useSession((s) => s.hydrated);
   const setBalance = useSession((s) => s.setBalance);
 
-  const [rail, setRail] = useState<Rail>("momo");
   const [amount, setAmount] = useState("");
   const [phoneEdit, setPhoneEdit] = useState<string | null>(null);
   const [network, setNetwork] = useState<string | null>(null);
@@ -41,7 +36,6 @@ export default function DepositPage() {
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [done, setDone] = useState<{ balance?: number; bonus?: number } | null>(null);
-  const [settings, setSettings] = useState<Record<string, string>>({});
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const country = player ? getCountry(player.country_code) : getCountry("GH");
@@ -57,13 +51,6 @@ export default function DepositPage() {
   useEffect(() => {
     if (hydrated && !player) router.replace("/login");
   }, [hydrated, player, router]);
-
-  useEffect(() => {
-    fetch("/api/settings")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((j) => j?.settings && setSettings(j.settings))
-      .catch(() => {});
-  }, []);
 
   useEffect(
     () => () => {
@@ -126,29 +113,6 @@ export default function DepositPage() {
     }
   };
 
-  const submitManual = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setBusy(true);
-    setError(null);
-    try {
-      const form = new FormData(e.currentTarget);
-      form.set("userId", player.id);
-      form.set("amount", String(value));
-
-      const res = await fetch("/api/deposits/manual", { method: "POST", body: form });
-      const json = await res.json();
-      if (!res.ok) {
-        setError(json.error ?? "Could not record your deposit");
-        return;
-      }
-      setStatus(json.message);
-    } catch {
-      setError("Network problem. Try again.");
-    } finally {
-      setBusy(false);
-    }
-  };
-
   if (done) {
     return (
       <div className="min-h-screen bg-[var(--bg)]">
@@ -188,236 +152,155 @@ export default function DepositPage() {
       <DepositHeader onBack={() => router.back()} />
 
       <div className="mx-auto max-w-2xl">
-        {/* Rail tabs */}
-        <div className="grid grid-cols-2">
-          {(
-            [
-              { key: "momo", label: country.payoutRail === "bank" ? "Card / Bank" : "Mobile Money" },
-              { key: "manual", label: "Manual transfer" },
-            ] as const
-          ).map((t) => (
-            <button
-              key={t.key}
-              onClick={() => {
-                setRail(t.key);
-                setError(null);
-                setStatus(null);
-              }}
-              className="relative py-3.5 text-[15px]"
-              style={{
-                color: rail === t.key ? "var(--text-bright)" : "var(--text-muted)",
-                fontWeight: rail === t.key ? 700 : 400,
-              }}
-            >
-              {t.label}
-              {rail === t.key && (
-                <span className="absolute inset-x-6 bottom-0 h-[3px] rounded-full bg-[var(--accent)]" />
-              )}
-            </button>
-          ))}
-        </div>
+        {/* One rail, so the tab bar it used to sit in is a heading now. */}
+        <p className="border-b border-[var(--line)] py-3.5 text-center text-[15px] font-bold text-[var(--text-bright)]">
+          {country.payoutRail === "bank" ? "Card / Bank" : "Mobile Money"}
+        </p>
 
-        {rail === "momo" ? (
-          <>
-            {/* Account rows */}
-            <SwitchRow
-              icon={<Smartphone size={20} strokeWidth={1.7} className="text-[var(--text-muted)]" />}
-              value={
-                <>
-                  <span className="text-[var(--text-muted)]">+{country.dialCode}</span>{" "}
-                  <span className="text-[var(--text-bright)]">{maskPhoneTail(phone)}</span>
-                </>
-              }
-              action={switching === "phone" ? "Done" : "Switch"}
-              muted={switching !== "phone"}
-              onAction={() => setSwitching(switching === "phone" ? null : "phone")}
+        {/* Account rows */}
+        <SwitchRow
+          icon={<Smartphone size={20} strokeWidth={1.7} className="text-[var(--text-muted)]" />}
+          value={
+            <>
+              <span className="text-[var(--text-muted)]">+{country.dialCode}</span>{" "}
+              <span className="text-[var(--text-bright)]">{maskPhoneTail(phone)}</span>
+            </>
+          }
+          action={switching === "phone" ? "Done" : "Switch"}
+          muted={switching !== "phone"}
+          onAction={() => setSwitching(switching === "phone" ? null : "phone")}
+        />
+
+        {switching === "phone" && (
+          <div className="px-4 pb-3">
+            <input
+              value={phone}
+              onChange={(e) => setPhoneEdit(e.target.value.replace(/[^\d]/g, ""))}
+              inputMode="numeric"
+              placeholder={`0${"X".repeat(country.phoneDigits)}`}
+              className="w-full rounded bg-[var(--surface-2)] px-3 py-2.5 text-[14px] outline-none focus:ring-1 focus:ring-[var(--accent)]"
             />
-
-            {switching === "phone" && (
-              <div className="px-4 pb-3">
-                <input
-                  value={phone}
-                  onChange={(e) => setPhoneEdit(e.target.value.replace(/[^\d]/g, ""))}
-                  inputMode="numeric"
-                  placeholder={`0${"X".repeat(country.phoneDigits)}`}
-                  className="w-full rounded bg-[var(--surface-2)] px-3 py-2.5 text-[14px] outline-none focus:ring-1 focus:ring-[var(--accent)]"
-                />
-              </div>
-            )}
-
-            <SwitchRow
-              icon={
-                <span className="flex h-7 w-9 items-center justify-center rounded bg-[var(--pending)] text-[9px] font-black text-[#3F2D03]">
-                  {chosenNetwork.split(" ")[0].slice(0, 4).toUpperCase()}
-                </span>
-              }
-              value={<span className="text-[var(--text-bright)]">{chosenNetwork}</span>}
-              action="Switch"
-              onAction={() => setSwitching(switching === "network" ? null : "network")}
-            />
-
-            {switching === "network" && (
-              <div className="flex flex-wrap gap-2 px-4 pb-3">
-                {country.networks.map((n) => (
-                  <button
-                    key={n}
-                    onClick={() => {
-                      setNetwork(n);
-                      setSwitching(null);
-                    }}
-                    className="rounded px-3 py-2 text-[13px] font-medium"
-                    style={
-                      chosenNetwork === n
-                        ? { background: "var(--accent)", color: "var(--accent-ink)" }
-                        : { background: "var(--surface-2)", color: "var(--text)" }
-                    }
-                  >
-                    {n}
-                  </button>
-                ))}
-              </div>
-            )}
-
-            <p className="flex items-center justify-end gap-1 px-4 py-3 text-[13px] text-[var(--text-muted)]">
-              <MapPin size={13} strokeWidth={2} />
-              Balance ({player.currency}) {Number(player.balance).toFixed(2)}
-            </p>
-
-            <AmountField
-              currency={player.currency}
-              value={amount}
-              onChange={setAmount}
-              hint={`min. ${min.toFixed(2)}`}
-            />
-
-            <div className="px-4 pt-5">
-              <button
-                onClick={startGateway}
-                disabled={!canSubmit}
-                className="w-full rounded-[4px] py-3.5 text-[16px] font-bold transition-colors"
-                style={
-                  canSubmit
-                    ? { background: "var(--accent)", color: "var(--accent-ink)" }
-                    : { background: "var(--surface)", color: "var(--text-muted)" }
-                }
-              >
-                {busy ? "Starting…" : "Top Up Now"}
-              </button>
-            </div>
-          </>
-        ) : (
-          <form onSubmit={submitManual}>
-            <div className="mx-4 mt-4 rounded bg-[var(--bg-elevated)] p-4">
-              <p className="text-[12px] text-[var(--text-muted)]">Send to</p>
-              <p className="mt-0.5 text-[20px] font-black tracking-wide text-[var(--accent)]">
-                {settings.deposit_account_number ?? "—"}
-              </p>
-              <p className="text-[12px] text-[var(--text-muted)]">
-                {settings.deposit_account_name ?? "3btafric"} ·{" "}
-                {settings.deposit_account_network ?? "Mobile Money"}
-              </p>
-            </div>
-
-            <AmountField
-              currency={player.currency}
-              value={amount}
-              onChange={setAmount}
-              hint={`min. ${min.toFixed(2)}`}
-            />
-
-            <div className="space-y-3 px-4 pt-3">
-              <label className="block">
-                <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[var(--text-faint)]">
-                  Number you sent from
-                </span>
-                <input
-                  name="senderNumber"
-                  type="tel"
-                  defaultValue={player.phone}
-                  className="w-full rounded bg-[var(--surface-2)] px-3 py-2.5 text-[14px] outline-none focus:ring-1 focus:ring-[var(--accent)]"
-                />
-              </label>
-
-              <label className="flex cursor-pointer items-center gap-2 rounded bg-[var(--surface-2)] px-3 py-3 text-[13px] text-[var(--text-muted)]">
-                <Upload size={16} strokeWidth={1.9} />
-                Screenshot of the transfer
-                <input name="screenshot" type="file" accept="image/*" className="sr-only" />
-              </label>
-
-              <button
-                type="submit"
-                disabled={!canSubmit}
-                className="w-full rounded-[4px] py-3.5 text-[16px] font-bold"
-                style={
-                  canSubmit
-                    ? { background: "var(--accent)", color: "var(--accent-ink)" }
-                    : { background: "var(--surface)", color: "var(--text-muted)" }
-                }
-              >
-                {busy ? "Sending…" : "I have sent the money"}
-              </button>
-            </div>
-          </form>
+          </div>
         )}
 
-        {/* Feedback */}
-        <div className="space-y-2 px-4 pt-3">
-          {tooSmall && (
-            <p className="text-[12px] text-[var(--lose)]">
-              The minimum deposit is {formatMoney(min, player.currency)}.
-            </p>
-          )}
-          {tooBig && (
-            <p className="text-[12px] text-[var(--lose)]">
-              The most you can send in one transaction is {formatMoney(max, player.currency)}.
-            </p>
-          )}
-          {status && (
-            <p className="rounded bg-[var(--pending)]/15 px-3 py-2.5 text-[12px] text-[var(--pending)]">
-              {status}
-            </p>
-          )}
-          {error && (
-            <p className="rounded bg-[var(--lose-bg)] px-3 py-2.5 text-[12px] text-[var(--lose)]">{error}</p>
-          )}
-        </div>
+        <SwitchRow
+          icon={
+            <span className="flex h-7 w-9 items-center justify-center rounded bg-[var(--pending)] text-[9px] font-black text-[#3F2D03]">
+              {chosenNetwork.split(" ")[0].slice(0, 4).toUpperCase()}
+            </span>
+          }
+          value={<span className="text-[var(--text-bright)]">{chosenNetwork}</span>}
+          action="Switch"
+          onAction={() => setSwitching(switching === "network" ? null : "network")}
+        />
 
-        {/* The rules, read from the same config the endpoint enforces. */}
-        <ol className="mt-6 space-y-2 px-4 pb-10 text-[13px] leading-relaxed text-[var(--text-muted)]">
-          <li>
-            1. The maximum amount per transaction is{" "}
-            <strong className="text-[var(--accent)]">{formatMoney(max, player.currency)}</strong>. To
-            deposit more than that, make multiple payments.
-          </li>
-          <li>
-            2. The minimum you can deposit is{" "}
-            <strong className="text-[var(--accent)]">{formatMoney(min, player.currency)}</strong>
-            {firstDeposit > min && (
-              <>
-                , and your first deposit must be at least{" "}
-                <strong className="text-[var(--accent)]">
-                  {formatMoney(firstDeposit, player.currency)}
-                </strong>
-              </>
-            )}
-            .
-          </li>
-          <li>3. There are no transaction fees. The deposit is free.</li>
-          <li>
-            4. You can only withdraw to the mobile number you used to create your account.
-          </li>
-        </ol>
+        {switching === "network" && (
+          <div className="flex flex-wrap gap-2 px-4 pb-3">
+            {country.networks.map((n) => (
+              <button
+                key={n}
+                onClick={() => {
+                  setNetwork(n);
+                  setSwitching(null);
+                }}
+                className="rounded px-3 py-2 text-[13px] font-medium"
+                style={
+                  chosenNetwork === n
+                    ? { background: "var(--accent)", color: "var(--accent-ink)" }
+                    : { background: "var(--surface-2)", color: "var(--text)" }
+                }
+              >
+                {n}
+              </button>
+            ))}
+          </div>
+        )}
 
-        {whatsapp && (
-          <a
-            href={`https://wa.me/${whatsapp.replace(/\D/g, "")}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mx-4 mb-10 block rounded py-3 text-center text-[12px] font-bold text-[var(--accent)] ring-1 ring-[var(--line)]"
+        <p className="flex items-center justify-end gap-1 px-4 py-3 text-[13px] text-[var(--text-muted)]">
+          <MapPin size={13} strokeWidth={2} />
+          Balance ({player.currency}) {Number(player.balance).toFixed(2)}
+        </p>
+
+        <AmountField
+          currency={player.currency}
+          value={amount}
+          onChange={setAmount}
+          hint={`min. ${min.toFixed(2)}`}
+        />
+
+        <div className="px-4 pt-5">
+          <button
+            onClick={startGateway}
+            disabled={!canSubmit}
+            className="w-full rounded-[4px] py-3.5 text-[16px] font-bold transition-colors"
+            style={
+              canSubmit
+                ? { background: "var(--accent)", color: "var(--accent-ink)" }
+                : { background: "var(--surface)", color: "var(--text-muted)" }
+            }
           >
-            Payment problem? Chat on WhatsApp
-          </a>
+            {busy ? "Starting…" : "Top Up Now"}
+          </button>
+        </div>
+
+    {/* Feedback */}
+    <div className="space-y-2 px-4 pt-3">
+      {tooSmall && (
+        <p className="text-[12px] text-[var(--lose)]">
+          The minimum deposit is {formatMoney(min, player.currency)}.
+        </p>
+      )}
+      {tooBig && (
+        <p className="text-[12px] text-[var(--lose)]">
+          The most you can send in one transaction is {formatMoney(max, player.currency)}.
+        </p>
+      )}
+      {status && (
+        <p className="rounded bg-[var(--pending)]/15 px-3 py-2.5 text-[12px] text-[var(--pending)]">
+          {status}
+        </p>
+      )}
+      {error && (
+        <p className="rounded bg-[var(--lose-bg)] px-3 py-2.5 text-[12px] text-[var(--lose)]">{error}</p>
+      )}
+    </div>
+
+    {/* The rules, read from the same config the endpoint enforces. */}
+    <ol className="mt-6 space-y-2 px-4 pb-10 text-[13px] leading-relaxed text-[var(--text-muted)]">
+      <li>
+        1. The maximum amount per transaction is{" "}
+        <strong className="text-[var(--accent)]">{formatMoney(max, player.currency)}</strong>. To
+        deposit more than that, make multiple payments.
+      </li>
+      <li>
+        2. The minimum you can deposit is{" "}
+        <strong className="text-[var(--accent)]">{formatMoney(min, player.currency)}</strong>
+        {firstDeposit > min && (
+          <>
+            , and your first deposit must be at least{" "}
+            <strong className="text-[var(--accent)]">
+              {formatMoney(firstDeposit, player.currency)}
+            </strong>
+          </>
         )}
+        .
+      </li>
+      <li>3. There are no transaction fees. The deposit is free.</li>
+      <li>
+        4. You can only withdraw to the mobile number you used to create your account.
+      </li>
+    </ol>
+
+    {whatsapp && (
+      <a
+        href={`https://wa.me/${whatsapp.replace(/\D/g, "")}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="mx-4 mb-10 block rounded py-3 text-center text-[12px] font-bold text-[var(--accent)] ring-1 ring-[var(--line)]"
+      >
+        Payment problem? Chat on WhatsApp
+      </a>
+    )}
       </div>
     </div>
   );

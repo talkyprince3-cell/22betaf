@@ -1,7 +1,5 @@
 "use client";
 
-import Link from "next/link";
-import { ChevronRight } from "lucide-react";
 import { useAdminData, Panel, CurrencyTotals } from "@/components/admin/ui";
 
 interface Overview {
@@ -12,7 +10,6 @@ interface Overview {
   openTickets: number;
   openStake: number;
   liability: Record<string, number>;
-  pendingDeposits: number;
   commissionToday: Record<string, number>;
   commissionCountToday: number;
   partnersPaidToday: number;
@@ -27,17 +24,6 @@ export default function OverviewPage() {
 
   return (
     <div className="space-y-3">
-      {data.pendingDeposits > 0 && (
-        <Link
-          href="/admin/deposits"
-          className="flex items-center gap-1 rounded bg-[var(--pending)]/15 px-4 py-3 text-[13px] font-semibold text-[var(--pending)]"
-        >
-          {data.pendingDeposits} manual deposit{data.pendingDeposits === 1 ? "" : "s"} waiting for
-          confirmation
-          <ChevronRight size={15} strokeWidth={2.2} />
-        </Link>
-      )}
-
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         <Panel title="Commission today">
           <div className="p-4">

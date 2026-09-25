@@ -8,7 +8,6 @@ import {
   X,
   LayoutDashboard,
   Users,
-  Banknote,
   ReceiptText,
   CalendarDays,
   Clapperboard,
@@ -23,7 +22,7 @@ import {
 /**
  * The operator console navigation.
  *
- * A drawer rather than a row of links: the console has nine screens across four
+ * A drawer rather than a row of links: the console has eight screens across four
  * concerns, and a horizontal strip either scrolls sideways on a phone or runs
  * out of room. Grouped in a drawer, each screen sits under the thing it is
  * about, and the header keeps the current page name visible.
@@ -45,7 +44,6 @@ const GROUPS: { title: string; items: Item[] }[] = [
     title: "Money",
     items: [
       { href: "/admin/players", label: "Players", Icon: Users, hint: "Balances and withdrawal approval" },
-      { href: "/admin/deposits", label: "Deposits", Icon: Banknote, hint: "Manual deposits awaiting confirmation" },
       { href: "/admin/payments", label: "Payments", Icon: ReceiptText, hint: "The full ledger" },
     ],
   },

@@ -1,10 +1,9 @@
 -- Buckets.
 --
--- Deposit screenshots are private: they are a player's payment record, read
--- only by the operator through short-lived signed URLs.
-insert into storage.buckets (id, name, public)
-values ('deposit-screenshots', 'deposit-screenshots', false)
-on conflict (id) do nothing;
+-- The deposit-screenshots bucket is deliberately not created here any more:
+-- the manual transfer rail it served has been removed. The bucket is left in
+-- place on deployments that already have one, because it still holds the
+-- payment records of deposits taken while that rail was open.
 
 -- Team crests are public: they are rendered on the board for every visitor, so
 -- signing a URL per crest per page view would be waste. The upload route is

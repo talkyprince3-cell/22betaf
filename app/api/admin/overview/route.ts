@@ -17,18 +17,12 @@ export async function GET() {
     { count: players },
     { count: depositors },
     { data: openBets },
-    { count: pendingDeposits },
     { data: commissionRows },
   ] = await Promise.all([
       supabase.from("payments").select("amount, currency, status, metadata").limit(5000),
       supabase.from("users").select("id", { count: "exact", head: true }),
       supabase.from("users").select("id", { count: "exact", head: true }).gt("total_deposited", 0),
       supabase.from("bets").select("stake, potential_win, currency").eq("status", "pending").limit(2000),
-      supabase
-        .from("payments")
-        .select("id", { count: "exact", head: true })
-        .eq("status", "pending")
-        .eq("provider", "manual"),
       // Commission paid out to every partner today. This is money already
       // moved to partner balances, so it is a cost of today's deposits rather
       // than a pending obligation.
@@ -70,6 +64,5 @@ export async function GET() {
     openTickets: openBets?.length ?? 0,
     openStake: Math.round(openStake * 100) / 100,
     liability,
-    pendingDeposits: pendingDeposits ?? 0,
   });
 }
