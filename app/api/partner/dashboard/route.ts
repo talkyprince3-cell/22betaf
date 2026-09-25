@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/supabase";
 import { currentPartner, publicPartner } from "@/lib/partner";
+import { startOfToday, totalPerCurrency } from "@/lib/money";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +26,15 @@ export async function GET() {
     .eq("sub_admin_id", partner.id)
     .order("created_at", { ascending: false })
     .limit(200);
+
+  // Today's earnings, queried rather than summed from the list above: that
+  // list is capped at 200 rows, so a busy partner would see the headline number
+  // quietly under-report once they passed the cap.
+  const { data: todayRows } = await supabase
+    .from("commissions")
+    .select("amount, currency")
+    .eq("sub_admin_id", partner.id)
+    .gte("created_at", startOfToday());
 
   // The partner's own betting wallet, when they have opened one.
   let wallet = null;
@@ -54,6 +64,8 @@ export async function GET() {
     partner: publicPartner(partner),
     players: players ?? [],
     commissions: commissions ?? [],
+    commissionToday: totalPerCurrency(todayRows),
+    commissionCountToday: todayRows?.length ?? 0,
     wallet,
     creditedToday: Math.round(creditedToday * 100) / 100,
     dailyLimit: Number(process.env.PARTNER_CREDIT_DAILY_MAX ?? 20000),

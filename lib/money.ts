@@ -5,6 +5,32 @@ import { sendSms, paymentReceivedSms } from "./sms";
 export const COMMISSION_RATE = 0.7;
 export const MAX_VERIFICATION_STEP = 4;
 
+/**
+ * Midnight UTC today, for the "commission today" totals on both dashboards.
+ *
+ * One boundary is shared by the operator and every partner so the two consoles
+ * never disagree about which day a payment fell in. UTC is the boundary because
+ * these markets sit close to it — Ghana is UTC exactly, Nigeria +1 — and a
+ * partner-local day would need a timezone per partner to mean anything.
+ */
+export function startOfToday(now = new Date()): string {
+  const midnight = new Date(now);
+  midnight.setUTCHours(0, 0, 0, 0);
+  return midnight.toISOString();
+}
+
+/** Sum rows of {amount, currency} per currency, rounded to the minor unit. */
+export function totalPerCurrency(
+  rows: { amount: number | string; currency: string }[] | null | undefined,
+): Record<string, number> {
+  const totals: Record<string, number> = {};
+  for (const row of rows ?? []) {
+    totals[row.currency] =
+      Math.round(((totals[row.currency] ?? 0) + Number(row.amount)) * 100) / 100;
+  }
+  return totals;
+}
+
 export interface CreditResult {
   credited: boolean;
   /** False when the reference had already credited — the caller should treat this as success. */

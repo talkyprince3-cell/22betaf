@@ -25,7 +25,17 @@ export async function GET(req: Request) {
     .limit(100);
 
   if (error) return NextResponse.json({ error: "Could not load your bets" }, { status: 500 });
-  if (!bets?.length) return NextResponse.json({ bets: [] });
+
+  // Counted rather than derived from the list above, which is capped at 100:
+  // a player past that cap would otherwise see the My Bets badge under-report.
+  // Settlement has already run, so this is the count after today's results.
+  const { count: openBets } = await supabase
+    .from("bets")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .eq("status", "pending");
+
+  if (!bets?.length) return NextResponse.json({ bets: [], openBets: openBets ?? 0 });
 
   const { data: legs } = await supabase
     .from("bet_selections")
@@ -41,5 +51,6 @@ export async function GET(req: Request) {
 
   return NextResponse.json({
     bets: bets.map((b) => ({ ...b, selections: byTicket.get(b.id) ?? [] })),
+    openBets: openBets ?? 0,
   });
 }

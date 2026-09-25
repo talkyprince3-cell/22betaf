@@ -46,6 +46,7 @@ export default function MyBetsPage() {
   const router = useRouter();
   const player = useSession((s) => s.player);
   const hydrated = useSession((s) => s.hydrated);
+  const setOpenBets = useSession((s) => s.setOpenBets);
 
   const [tickets, setTickets] = useState<Ticket[] | null>(null);
   const [filter, setFilter] = useState("all");
@@ -65,13 +66,18 @@ export default function MyBetsPage() {
         const bets: Ticket[] = j.bets ?? [];
         setTickets(bets);
 
+        // This response is the freshest count there is — settlement ran on the
+        // way in — so it corrects the tab badge without waiting for the next
+        // balance poll to notice the tickets that just closed.
+        if (typeof j.openBets === "number") setOpenBets(j.openBets);
+
         // Announce a win once. Opening this screen is the moment the player
         // finds out, and settlement has already run by the time it responds.
         const fresh = bets.find((b) => b.status === "won" && !hasCelebrated(b.code));
         if (fresh && markCelebrated(fresh.code)) setCelebrating(fresh);
       })
       .catch(() => setTickets([]));
-  }, [player]);
+  }, [player, setOpenBets]);
 
   if (!player) return null;
 

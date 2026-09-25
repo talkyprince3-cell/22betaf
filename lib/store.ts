@@ -135,9 +135,18 @@ export interface Player {
 interface SessionState {
   player: Player | null;
   hydrated: boolean;
+  /**
+   * Open tickets, for the count on the My Bets tab. Deliberately outside
+   * `partialize`: a stale number restored from storage would show a badge for
+   * tickets that settled while the app was closed.
+   */
+  openBets: number;
   signIn: (player: Player) => void;
   signOut: () => void;
   setBalance: (balance: number) => void;
+  setOpenBets: (count: number) => void;
+  /** Placing a slip bumps the badge now, rather than waiting on the next poll. */
+  addOpenBets: (delta: number) => void;
   markHydrated: () => void;
 }
 
@@ -146,10 +155,13 @@ export const useSession = create<SessionState>()(
     (set) => ({
       player: null,
       hydrated: false,
+      openBets: 0,
       signIn: (player) => set({ player }),
-      signOut: () => set({ player: null }),
+      signOut: () => set({ player: null, openBets: 0 }),
       setBalance: (balance) =>
         set((s) => (s.player ? { player: { ...s.player, balance } } : s)),
+      setOpenBets: (openBets) => set({ openBets }),
+      addOpenBets: (delta) => set((s) => ({ openBets: Math.max(0, s.openBets + delta) })),
       markHydrated: () => set({ hydrated: true }),
     }),
     {

@@ -31,9 +31,15 @@ export async function GET(req: Request) {
   const country = getCountry(user.country_code);
   const gate = checkWithdrawalGate(user, 0);
 
-  // Tier points come from turnover, so they are summed off the stakes.
-  const { data: staked } = await supabase.from("bets").select("stake").eq("user_id", user.id);
+  // Tier points come from turnover, so they are summed off the stakes. The
+  // same rows carry the open-ticket count for the My Bets badge, so the badge
+  // costs no extra query.
+  const { data: staked } = await supabase
+    .from("bets")
+    .select("stake, status")
+    .eq("user_id", user.id);
   const tierPoints = (staked ?? []).reduce((sum, b) => sum + Number(b.stake), 0);
+  const openBets = (staked ?? []).filter((b) => b.status === "pending").length;
 
   // A partner betting on their own account sees a way back to the dashboard.
   const linked = await linkedSubAdmin(user);
@@ -67,5 +73,6 @@ export async function GET(req: Request) {
     },
     partner: partner ?? null,
     tierPoints: Math.floor(tierPoints),
+    openBets,
   });
 }

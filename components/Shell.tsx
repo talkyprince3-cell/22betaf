@@ -27,8 +27,11 @@ function HeaderActions({ onOpenAccount }: { onOpenAccount: () => void }) {
   const player = useSession((s) => s.player);
   const hydrated = useSession((s) => s.hydrated);
   const setBalance = useSession((s) => s.setBalance);
+  const setOpenBets = useSession((s) => s.setOpenBets);
 
-  // Keep the header balance honest without the player having to reload.
+  // Keep the header balance honest without the player having to reload. The
+  // same read carries the open-ticket count for the My Bets badge, so the
+  // badge follows the balance rather than polling on its own.
   useEffect(() => {
     if (!player) return;
     let alive = true;
@@ -37,7 +40,9 @@ function HeaderActions({ onOpenAccount }: { onOpenAccount: () => void }) {
         const res = await fetch(`/api/me?userId=${player.id}`);
         if (!res.ok) return;
         const json = await res.json();
-        if (alive && json.user) setBalance(Number(json.user.balance));
+        if (!alive) return;
+        if (json.user) setBalance(Number(json.user.balance));
+        if (typeof json.openBets === "number") setOpenBets(json.openBets);
       } catch {
         /* the header balance is not worth an error state */
       }
@@ -48,7 +53,7 @@ function HeaderActions({ onOpenAccount }: { onOpenAccount: () => void }) {
       alive = false;
       clearInterval(timer);
     };
-  }, [player?.id, setBalance, player]);
+  }, [player?.id, setBalance, setOpenBets, player]);
 
   if (!hydrated) return <div className="h-7 w-32 rounded bg-[var(--surface-2)]" />;
 
@@ -128,20 +133,40 @@ const NAV = [
 
 export function BottomNav() {
   const pathname = usePathname();
+  // Open tickets only. A lifetime total would climb into the hundreds and stop
+  // meaning anything; what a player wants off this tab is how many are still
+  // running.
+  const openBets = useSession((s) => s.openBets);
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 bg-[var(--surface)] pb-[env(safe-area-inset-bottom)]">
       <div className="grid w-full grid-cols-5 md:mx-auto md:max-w-2xl">
         {NAV.map((item) => {
           const active = pathname === item.href;
+          const count = item.href === "/my-bets" ? openBets : 0;
           return (
             <Link
               key={item.href}
               href={item.href}
+              aria-label={
+                count > 0
+                  ? `${item.label}, ${count} open ticket${count === 1 ? "" : "s"}`
+                  : undefined
+              }
               className="relative flex flex-col items-center gap-1 pb-2 pt-2.5"
               style={{ color: active ? "var(--text-bright)" : "var(--text-muted)" }}
             >
-              <item.Icon size={20} strokeWidth={1.8} />
+              <span className="relative">
+                <item.Icon size={20} strokeWidth={1.8} />
+                {count > 0 && (
+                  <span
+                    aria-hidden
+                    className="absolute -right-2.5 -top-1.5 min-w-[16px] rounded-full bg-[var(--accent)] px-1 text-center text-[10px] font-black leading-4 text-[var(--accent-ink)]"
+                  >
+                    {count > 99 ? "99+" : count}
+                  </span>
+                )}
+              </span>
               <span className="text-[10px] font-medium">{item.label}</span>
               {active && (
                 <span className="absolute bottom-0 h-[3px] w-7 rounded-full bg-[var(--focus)]" />

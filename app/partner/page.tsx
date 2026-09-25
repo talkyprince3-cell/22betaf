@@ -34,6 +34,8 @@ interface Dashboard {
   partner: Partner;
   players: { id: string; name: string; phone: string; currency: string; total_deposited: number; created_at: string }[];
   commissions: { id: string; deposit_amount: number; currency: string; rate: number; amount: number; created_at: string }[];
+  commissionToday: Record<string, number>;
+  commissionCountToday: number;
   wallet: Wallet | null;
   creditedToday: number;
   dailyLimit: number;
@@ -199,7 +201,8 @@ function PartnerAuth({ mode, onDone }: { mode: "login" | "register"; onDone: () 
 }
 
 function PartnerDashboard({ data, onReload }: { data: Dashboard; onReload: () => void }) {
-  const { partner, players, commissions, wallet, creditedToday, dailyLimit } = data;
+  const { partner, players, commissions, commissionToday, commissionCountToday, wallet, creditedToday, dailyLimit } =
+    data;
   const [payout, setPayout] = useState({
     payout_name: partner.payout_name ?? "",
     payout_network: partner.payout_network ?? "",
@@ -274,7 +277,17 @@ function PartnerDashboard({ data, onReload }: { data: Dashboard; onReload: () =>
         onChanged={onReload}
       />
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <Card
+          label="Commission today"
+          value={<Money totals={commissionToday} />}
+          note={
+            commissionCountToday
+              ? `${commissionCountToday} deposit${commissionCountToday === 1 ? "" : "s"} so far`
+              : "No deposits yet today"
+          }
+          accent
+        />
         <Card label="Referred players" value={String(players.length)} />
         <Card label="Owed to you" value={<Money totals={partner.balances} />} />
         <Card label="Earned all time" value={<Money totals={partner.lifetime} />} />
@@ -382,11 +395,27 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function Card({ label, value }: { label: string; value: React.ReactNode }) {
+function Card({
+  label,
+  value,
+  note,
+  accent,
+}: {
+  label: string;
+  value: React.ReactNode;
+  note?: string;
+  accent?: boolean;
+}) {
   return (
     <div className="rounded bg-[var(--bg-elevated)] p-4">
       <p className="text-[10px] uppercase tracking-wide text-[var(--text-faint)]">{label}</p>
-      <div className="mt-0.5 text-[18px] font-black">{value}</div>
+      <div
+        className="mt-0.5 text-[18px] font-black"
+        style={accent ? { color: "var(--accent)" } : undefined}
+      >
+        {value}
+      </div>
+      {note && <p className="mt-0.5 text-[11px] text-[var(--text-muted)]">{note}</p>}
     </div>
   );
 }

@@ -13,6 +13,9 @@ interface Overview {
   openStake: number;
   liability: Record<string, number>;
   pendingDeposits: number;
+  commissionToday: Record<string, number>;
+  commissionCountToday: number;
+  partnersPaidToday: number;
 }
 
 export default function OverviewPage() {
@@ -35,7 +38,19 @@ export default function OverviewPage() {
         </Link>
       )}
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+        <Panel title="Commission today">
+          <div className="p-4">
+            <CurrencyTotals totals={data.commissionToday} />
+            <p className="mt-1 text-[11px] text-[var(--text-muted)]">
+              {data.commissionCountToday === 0
+                ? "No partner deposits yet today"
+                : `${data.commissionCountToday} deposit${
+                    data.commissionCountToday === 1 ? "" : "s"
+                  } · ${data.partnersPaidToday} partner${data.partnersPaidToday === 1 ? "" : "s"}`}
+            </p>
+          </div>
+        </Panel>
         <Panel title="Deposits">
           <div className="p-4">
             <CurrencyTotals totals={data.deposits} />
