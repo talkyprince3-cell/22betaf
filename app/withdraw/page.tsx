@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { Page } from "@/components/Shell";
 import { useSession } from "@/lib/store";
 import { getCountry, formatMoney } from "@/lib/countries";
-import { VerifyGate } from "@/components/VerifyGate";
 import { showWithdrawalIos } from "@/lib/withdrawal-ios";
 
 export default function WithdrawPage() {
@@ -21,10 +20,7 @@ export default function WithdrawPage() {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [progress, setProgress] = useState<{ label: string; have: number; need: number } | null>(null);
-  const [gateFailed, setGateFailed] = useState<string | null>(null);
-  const [checking, setChecking] = useState(false);
   const [allowed, setAllowed] = useState<boolean | null>(null);
-  const [verified, setVerified] = useState(false);
 
   const country = player ? getCountry(player.country_code) : getCountry("GH");
 
@@ -50,9 +46,7 @@ export default function WithdrawPage() {
     }) => {
       const isSubAdmin = Boolean(j.partner);
       setAllowed(isSubAdmin);
-      setVerified(isSubAdmin && j.withdrawal.unlocked);
       setProgress(j.withdrawal.progress);
-      setGateFailed(isSubAdmin && !j.withdrawal.unlocked ? "deposits" : null);
       setPayoutNumber((n) => n || j.user.payout_number || player?.phone || "");
       setPayoutBank((b) => b || j.user.payout_bank || "");
       if (typeof j.user.balance === "number") setBalance(Number(j.user.balance));
@@ -70,20 +64,11 @@ export default function WithdrawPage() {
     };
   }, [fetchMe, apply]);
 
-  /** The player says they have deposited: ask the server rather than assume. */
-  const recheck = () => {
-    setChecking(true);
-    void fetchMe().then((j) => {
-      if (j) apply(j);
-      setChecking(false);
-    });
-  };
-
   if (!player) return null;
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (allowed !== true || !verified) return;
+    if (allowed !== true) return;
     setBusy(true);
     setError(null);
     setMessage(null);
@@ -97,8 +82,7 @@ export default function WithdrawPage() {
 
       if (!res.ok) {
         if (json.progress) setProgress(json.progress);
-        if (json.gate === "deposits") setGateFailed("deposits");
-        setError(json.gate === "deposits" ? null : (json.error ?? "Could not submit your withdrawal"));
+        setError(json.error ?? "Could not submit your withdrawal");
         return;
       }
 
@@ -122,20 +106,6 @@ export default function WithdrawPage() {
 
   return (
     <Page>
-      {/* The deposit gate is the one worth interrupting for: the others are
-          fixed on this page, this one is not. */}
-      {allowed && !verified && (
-        <VerifyGate
-          amount={country.withdrawQualifyAmount}
-          currency={player.currency}
-          have={progress?.have ?? 0}
-          need={progress?.need || country.withdrawQualifyCount || 1}
-          onBack={() => router.back()}
-          onRecheck={recheck}
-          checking={checking}
-        />
-      )}
-
       <div className="mx-auto max-w-md space-y-3">
         <h1 className="text-[18px] font-black">Withdraw</h1>
 
@@ -145,7 +115,7 @@ export default function WithdrawPage() {
           </p>
         )}
 
-        {allowed && verified && (
+        {allowed && (
         <div className="rounded bg-[var(--bg-elevated)] p-4">
           <p className="text-[11px] uppercase tracking-wide text-[var(--text-faint)]">Available</p>
           <p className="text-[26px] font-black text-[var(--accent)]">
@@ -155,7 +125,7 @@ export default function WithdrawPage() {
         </div>
         )}
 
-        {allowed && verified && (
+        {allowed && (
         <form onSubmit={submit} className="space-y-3 rounded bg-[var(--bg-elevated)] p-4">
           <label className="block">
             <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[var(--text-faint)]">

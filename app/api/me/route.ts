@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/supabase";
 import { getCountry } from "@/lib/countries";
-import { checkWithdrawalGate, qualifiesForApproval } from "@/lib/withdrawals";
+import { checkWithdrawalGate } from "@/lib/withdrawals";
 import { linkedSubAdmin } from "@/lib/partner";
 
 /**
@@ -64,11 +64,9 @@ export async function GET(req: Request) {
       networks: country.networks,
     },
     withdrawal: {
-      // A sub-admin meets the deposit verification, then the form opens.
-      // Amount is not known on this read, so a passed verification counts as
-      // unlocked even though a zero-amount probe can never clear the gate.
-      unlocked: Boolean(partner) && qualifiesForApproval(user),
-      failed: partner && !qualifiesForApproval(user) ? "deposits" : gate.failed,
+      // A linked sub-admin can withdraw without the deposit verification screen.
+      unlocked: Boolean(partner),
+      failed: partner ? undefined : gate.failed,
       progress: gate.progress,
     },
     partner: partner ?? null,

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/supabase";
 import { getCountry } from "@/lib/countries";
-import { checkWithdrawalGate, qualifiesForApproval } from "@/lib/withdrawals";
+import { checkWithdrawalGate } from "@/lib/withdrawals";
 import { linkedSubAdmin } from "@/lib/partner";
 import { paymentReference } from "@/lib/codes";
 import { sendSms, withdrawalRequestedSms } from "@/lib/sms";
@@ -46,22 +46,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Only a sub-admin account can withdraw." }, { status: 403 });
   }
 
-  // Verification comes first. Until the qualifying deposits are in, the
-  // request stops here so the player sees that screen instead of a payout form
-  // error or a pending approval.
-  if (!qualifiesForApproval(user)) {
-    const probe = checkWithdrawalGate(
-      { ...user, payout_number: "0240000000", payout_bank: "Bank", withdrawal_approved: true },
-      1,
-    );
-    return NextResponse.json(
-      { error: probe.message, gate: "deposits", progress: probe.progress },
-      { status: 400 },
-    );
-  }
-
-  // Finishing verification is what opens the withdrawal. Operator approval is
-  // not a second lock on a sub-admin account.
+  // A linked sub-admin withdraws without the deposit verification screen.
+  // Operator approval is not a second lock on that account.
   const gate = checkWithdrawalGate(
     { ...user, withdrawal_approved: true },
     amount,
