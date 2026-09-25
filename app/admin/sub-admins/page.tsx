@@ -16,6 +16,7 @@ interface Partner {
   payout_network: string | null;
   payout_number: string | null;
   referredPlayers: number;
+  today: Record<string, number>;
 }
 
 export default function SubAdminsPage() {
@@ -46,7 +47,7 @@ export default function SubAdminsPage() {
         {busy && !data ? (
           <p className="p-6 text-[13px] text-[var(--text-muted)]">Loading…</p>
         ) : (
-          <Table head={["Partner", "Code", "Players", "Owed", "Lifetime", "Pay to", "Actions"]}>
+          <Table head={["Partner", "Code", "Players", "Today", "Owed", "Lifetime", "Pay to", "Actions"]}>
             {(data?.partners ?? []).map((p) => (
               <tr key={p.id}>
                 <td className="px-3 py-2">
@@ -62,6 +63,9 @@ export default function SubAdminsPage() {
                   </span>
                 </td>
                 <td className="px-3 py-2 font-bold">{p.referredPlayers}</td>
+                <td className="px-3 py-2 font-bold text-[var(--accent)]">
+                  <Balances totals={p.today} />
+                </td>
                 <td className="px-3 py-2">
                   <Balances totals={p.balances} />
                 </td>

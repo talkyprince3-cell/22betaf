@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/supabase";
 import { requireAdmin } from "@/lib/admin-guard";
+import { startOfToday, totalPerCurrency } from "@/lib/money";
 
 export const dynamic = "force-dynamic";
 
@@ -23,8 +24,28 @@ export async function GET() {
     byPartner.set(row.referred_by, (byPartner.get(row.referred_by) ?? 0) + 1);
   }
 
+  // What each partner has earned today, so the operator can see who is working
+  // now rather than only who has earned at some point. One query for the whole
+  // table: a per-partner read would be 200 round trips to fill one column.
+  const { data: todayRows } = await supabase
+    .from("commissions")
+    .select("sub_admin_id, amount, currency")
+    .gte("created_at", startOfToday())
+    .limit(5000);
+
+  const todayByPartner = new Map<string, { amount: number; currency: string }[]>();
+  for (const row of todayRows ?? []) {
+    const list = todayByPartner.get(row.sub_admin_id) ?? [];
+    list.push({ amount: Number(row.amount), currency: row.currency });
+    todayByPartner.set(row.sub_admin_id, list);
+  }
+
   return NextResponse.json({
-    partners: (partners ?? []).map((p) => ({ ...p, referredPlayers: byPartner.get(p.id) ?? 0 })),
+    partners: (partners ?? []).map((p) => ({
+      ...p,
+      referredPlayers: byPartner.get(p.id) ?? 0,
+      today: totalPerCurrency(todayByPartner.get(p.id)),
+    })),
   });
 }
 
