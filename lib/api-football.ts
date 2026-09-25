@@ -72,9 +72,33 @@ function key(): string | null {
   return process.env.API_FOOTBALL_KEY || null;
 }
 
+/**
+ * When upstream last failed us, as opposed to genuinely having no fixtures.
+ *
+ * Both look identical downstream — an empty list — but they mean opposite
+ * things to a player holding a slip. A fixture missing because upstream is
+ * unreachable is still a real fixture; only a fixture missing from a healthy
+ * read has actually gone. Callers about to tell a player their match no longer
+ * exists check this first, so a blip is never reported as a vanished match.
+ *
+ * Deliberately coarse: per instance, and only ever used to choose the wording
+ * of an error, never to decide whether money moves.
+ */
+let unavailableSince = 0;
+const UNAVAILABLE_MS = 90_000;
+
+export function upstreamUnavailable(): boolean {
+  return unavailableSince > 0 && Date.now() - unavailableSince < UNAVAILABLE_MS;
+}
+
 async function call<T>(path: string): Promise<T | null> {
   const k = key();
-  if (!k) return null;
+  // No key configured is not a blip, but it has the same consequence: nothing
+  // upstream can be confirmed, so no fixture here can be called gone.
+  if (!k) {
+    unavailableSince = Date.now();
+    return null;
+  }
   try {
     const res = await fetch(`${BASE}${path}`, {
       headers: { "x-apisports-key": k },
@@ -82,15 +106,22 @@ async function call<T>(path: string): Promise<T | null> {
     });
     if (!res.ok) {
       console.error("[api-football]", path, res.status);
+      unavailableSince = Date.now();
       return null;
     }
     const json = (await res.json()) as { response?: T; errors?: unknown };
+    // A blown daily quota or a rejected key comes back as 200 with an errors
+    // object and an empty response, which is indistinguishable from a quiet
+    // day unless it is caught here.
     if (json.errors && Array.isArray(json.errors) === false && Object.keys(json.errors).length) {
       console.error("[api-football] errors", json.errors);
+      unavailableSince = Date.now();
+      return null;
     }
     return (json.response ?? null) as T | null;
   } catch (err) {
     console.error("[api-football] threw", path, err);
+    unavailableSince = Date.now();
     return null;
   }
 }
@@ -329,6 +360,37 @@ import type { RawBookmaker } from "./markets";
  * full market set across the whole card would be far too many requests.
  */
 const fixtureOddsCache = new Map<string, { at: number; value: RawBookmaker[] }>();
+
+const fixtureByIdCache = new Map<string, { at: number; value: UpstreamFixture | null }>();
+
+/**
+ * One fixture by id, for a match that is no longer on the board.
+ *
+ * The live feed carries any league being played right now, while the dated
+ * feed carries only the whitelist — so a match can enter the board through a
+ * door it cannot come back through, and a slip built on it would be stuck
+ * forever once the match left the live window. Asking upstream for the single
+ * fixture settles it either way: still to play, or finished.
+ *
+ * Returns null for a finished fixture, which is the honest answer to "can this
+ * still be bet on" and keeps the caller from having to know the status codes.
+ */
+export async function fetchFixtureById(fixtureId: string): Promise<UpstreamFixture | null> {
+  const cached = fixtureByIdCache.get(fixtureId);
+  if (cached && Date.now() - cached.at < TTL_MS) return cached.value;
+
+  const raw = await call<RawFixture[]>(`/fixtures?id=${encodeURIComponent(fixtureId)}`);
+  if (!raw) return cached?.value ?? null;
+
+  const f = raw[0];
+  const value = f && !isFinished(f.fixture.status.short) ? toFixture(f) : null;
+
+  // Keep the cache from growing without bound on a long-running instance.
+  if (fixtureByIdCache.size > 200) fixtureByIdCache.clear();
+  fixtureByIdCache.set(fixtureId, { at: Date.now(), value });
+
+  return value;
+}
 
 export async function fetchFixtureOdds(fixtureId: string): Promise<RawBookmaker[]> {
   const cached = fixtureOddsCache.get(fixtureId);

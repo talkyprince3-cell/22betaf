@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/supabase";
 import { ticketCode, bookingCode } from "@/lib/codes";
 import { getMatchDetail } from "@/lib/fixtures";
+import { upstreamUnavailable } from "@/lib/api-football";
 import { bonusAmount, combinations, systemSizes } from "@/lib/bonus";
 import { resolveSelection } from "@/lib/resolve";
 
@@ -126,11 +127,36 @@ export async function POST(req: Request) {
   // different number.
   const changes: { match: string; from: number; to: number }[] = [];
 
+  // Every missing leg at once, not just the first: a player told to fix one
+  // match at a time has to submit again to find out about the next.
+  const missing = selections.filter((leg) => !byId.has(leg.matchId)).map((leg) => leg.matchId);
+
+  if (missing.length) {
+    // A fixture absent because we could not reach upstream has not gone
+    // anywhere, and telling the player it has would have them tear up a
+    // perfectly good slip over a blip. That case is retryable; this one is not.
+    if (upstreamUnavailable()) {
+      return NextResponse.json(
+        { error: "We cannot reach the odds feed right now. Your slip is saved — try again in a moment." },
+        { status: 503 },
+      );
+    }
+    return NextResponse.json(
+      {
+        error:
+          missing.length === 1
+            ? "A match on your slip has finished or been withdrawn, so it can no longer be priced."
+            : `${missing.length} matches on your slip have finished or been withdrawn, so they can no longer be priced.`,
+        // Named so the slip can offer to drop exactly these and leave the rest.
+        unavailableMatchIds: missing,
+      },
+      { status: 409 },
+    );
+  }
+
   for (const leg of selections) {
     const match = byId.get(leg.matchId);
-    if (!match) {
-      return NextResponse.json({ error: "A match on your slip is no longer available" }, { status: 409 });
-    }
+    if (!match) continue;
     if (match.isLocked || match.postponed) {
       return NextResponse.json(
         { error: `Betting is closed on ${match.homeTeam} v ${match.awayTeam}` },

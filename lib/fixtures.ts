@@ -4,9 +4,11 @@ import {
   fetchLiveFixtures,
   fetchOdds,
   fetchFixtureOdds,
+  fetchFixtureById,
   syntheticOdds,
   isFinished,
   isLiveStatus,
+  type UpstreamFixture,
 } from "./api-football";
 import { buildMarkets } from "./markets";
 import { matchClock, scoreFromTimeline } from "./clock";
@@ -142,35 +144,45 @@ async function loadUpstream(): Promise<FeedMatch[]> {
       // Any market upstream did not price is derived locally from 1X2, so the
       // market selector always has something to show.
       const priced = odds.get(f.id) ?? oddsByDate[0].get(f.id) ?? syntheticOdds(f.id);
-      const live = isLiveStatus(f.statusShort);
 
-      out.push({
-        id: f.id,
-        source: "api",
-        league: f.league,
-        country: f.country,
-        sport: "football",
-        homeTeam: f.homeTeam,
-        awayTeam: f.awayTeam,
-        homeCrest: f.homeCrest,
-        awayCrest: f.awayCrest,
-        kickoff: f.kickoff,
-        isLive: live,
-        isLocked: live, // Live betting is locked platform-wide.
-        postponed: f.statusShort === "PST",
-        // Only live state is labelled server-side. A kickoff time is left for
-        // the browser to format, so it shows in the player's own timezone
-        // rather than the host's.
-        minuteLabel: live ? (f.minute != null ? `${f.minute}'` : "LIVE") : "",
-        scoreHome: f.scoreHome,
-        scoreAway: f.scoreAway,
-        bestOdds: false,
-        markets: deriveMarkets(priced.home, priced.draw, priced.away),
-      });
+      out.push(toFeedMatch(f, priced));
     }
   }
 
   return out;
+}
+
+/** One upstream fixture as a board entry. Shared so a fixture fetched on its
+ *  own is built exactly like one that came off the board. */
+function toFeedMatch(
+  f: UpstreamFixture,
+  priced: { home: number; draw: number; away: number },
+): FeedMatch {
+  const live = isLiveStatus(f.statusShort);
+
+  return {
+    id: f.id,
+    source: "api",
+    league: f.league,
+    country: f.country,
+    sport: "football",
+    homeTeam: f.homeTeam,
+    awayTeam: f.awayTeam,
+    homeCrest: f.homeCrest,
+    awayCrest: f.awayCrest,
+    kickoff: f.kickoff,
+    isLive: live,
+    isLocked: live, // Live betting is locked platform-wide.
+    postponed: f.statusShort === "PST",
+    // Only live state is labelled server-side. A kickoff time is left for
+    // the browser to format, so it shows in the player's own timezone
+    // rather than the host's.
+    minuteLabel: live ? (f.minute != null ? `${f.minute}'` : "LIVE") : "",
+    scoreHome: f.scoreHome,
+    scoreAway: f.scoreAway,
+    bestOdds: false,
+    markets: deriveMarkets(priced.home, priced.draw, priced.away),
+  };
 }
 
 async function loadCustom(): Promise<FeedMatch[]> {
@@ -265,9 +277,30 @@ async function loadOverrides(): Promise<Map<string, OverrideRow>> {
  * Both the details page and bet placement go through here, so a player can
  * never be shown a price the placement endpoint would refuse to honour.
  */
+/**
+ * A fixture that is not on the board, asked for by id.
+ *
+ * The board is two windows — today and tomorrow in the whitelisted leagues,
+ * plus whatever is live anywhere — and a match can fall out of both while a
+ * slip built on it is still open. Without this, such a slip could never be
+ * placed again, however long the match was still from kicking off.
+ *
+ * Only upstream fixtures need it: a custom match is on the board until the
+ * operator finishes it, and an id that is neither is genuinely unknown.
+ */
+async function offBoardMatch(id: string): Promise<FeedMatch | null> {
+  // Upstream ids are numeric; a custom match is `cm_<uuid>`. Asking upstream
+  // about anything else only spends quota to be told nothing.
+  if (!/^\d+$/.test(id)) return null;
+
+  const fixture = await fetchFixtureById(id);
+  if (!fixture) return null;
+  return toFeedMatch(fixture, syntheticOdds(fixture.id));
+}
+
 export async function getMatchDetail(id: string): Promise<FeedMatch | null> {
   const feed = await getFeed();
-  const match = feed.find((m) => m.id === id);
+  const match = feed.find((m) => m.id === id) ?? (await offBoardMatch(id));
   if (!match) return null;
 
   // Operator-created matches are priced by the operator; there is no upstream

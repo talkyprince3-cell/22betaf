@@ -54,9 +54,13 @@ export function BetSlip() {
 
   const player = useSession((s) => s.player);
   const setBalance = useSession((s) => s.setBalance);
+  const addOpenBets = useSession((s) => s.addOpenBets);
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Legs the server refused to price because the fixture has gone. Kept so the
+  // banner can offer to drop exactly those and leave the rest of the slip.
+  const [unavailable, setUnavailable] = useState<string[]>([]);
   // The placed slip keeps the legs it was built from, so the receipt can show
   // the selections back rather than only confirming.
   const [placed, setPlaced] = useState<{
@@ -104,10 +108,15 @@ export function BetSlip() {
 
   const standing = bonusFor(oddsPerLeg);
 
+  // The server names the dead fixtures by id; the slip is what knows who was
+  // playing, so the two are matched up here to name them in the banner.
+  const deadLegs = legs.filter((l) => unavailable.includes(l.matchId));
+
   const place = async () => {
     if (!player) return;
     setBusy(true);
     setError(null);
+    setUnavailable([]);
     try {
       const res = await fetch("/api/bets/place", {
         method: "POST",
@@ -129,6 +138,9 @@ export function BetSlip() {
       const json = await res.json();
       if (!res.ok) {
         setError(json.error ?? "Could not place your bet");
+        if (Array.isArray(json.unavailableMatchIds)) {
+          setUnavailable(json.unavailableMatchIds.map(String));
+        }
         return;
       }
       setPlaced({
@@ -140,6 +152,9 @@ export function BetSlip() {
         oddsChanged: json.oddsChanged ?? [],
       });
       if (typeof json.balance === "number") setBalance(json.balance);
+      // A system or singles slip becomes several tickets, so the badge moves by
+      // the number of lines written, not by one.
+      addOpenBets(Number(json.lines) || 1);
       // Empty the slip but leave the sheet open: the receipt is the next thing
       // the player should see, and clear() would close it out from under them.
       clearLegs();
@@ -398,9 +413,32 @@ export function BetSlip() {
             </dl>
 
             {error && (
-              <p className="mx-4 mt-2 rounded bg-[var(--lose-bg)] px-3 py-2 text-[12px] text-[var(--lose)]">
-                {error}
-              </p>
+              <div className="mx-4 mt-2 rounded bg-[var(--lose-bg)] px-3 py-2 text-[12px] text-[var(--lose)]">
+                <p>{error}</p>
+
+                {deadLegs.length > 0 && (
+                  <>
+                    <ul className="mt-1.5 space-y-0.5 font-bold">
+                      {deadLegs.map((l) => (
+                        <li key={l.matchId}>
+                          {l.homeTeam} v {l.awayTeam}
+                        </li>
+                      ))}
+                    </ul>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        for (const l of deadLegs) remove(l.matchId);
+                        setUnavailable([]);
+                        setError(null);
+                      }}
+                      className="mt-2 rounded bg-[var(--lose)] px-2.5 py-1.5 text-[11px] font-black text-white"
+                    >
+                      Remove {deadLegs.length === 1 ? "it" : "them"} and keep the rest
+                    </button>
+                  </>
+                )}
+              </div>
             )}
 
             {/* Actions */}
