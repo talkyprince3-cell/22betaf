@@ -1,13 +1,31 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 44" role="img" aria-label="3btafric">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 44" role="img" aria-label="22betafro">
+  <!--
+    The tile is the first half of the name, not decoration beside it: the mark
+    reads "22" and the type continues "betafro", so the lockup says the brand
+    once rather than twice.
+
+    Coral carries no type here. It only reaches 2.6:1 against the header teal
+    (see globals.css), so the solid coral tile holds white instead, and the one
+    coloured word uses the lighter coral the palette keeps for type on dark.
+
+    The 200x44 viewBox is inherited rather than fitted, so every existing
+    Image size already set against this file keeps its proportions.
+  -->
   <defs>
-    <linearGradient id="stk" x1="0" y1="0" x2="1" y2="1">
+    <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#FF5252"/>
       <stop offset="1" stop-color="#DD2C44"/>
     </linearGradient>
   </defs>
-  <rect x="0" y="4" width="36" height="36" rx="9" fill="url(#stk)"/>
-  <text x="18" y="31" text-anchor="middle" font-family="ui-sans-serif,system-ui,Segoe UI,Roboto,Arial,sans-serif" font-size="25" font-weight="800" fill="#FFFFFF">3</text>
-  <text x="44" y="29" font-family="ui-sans-serif,system-ui,Segoe UI,Roboto,Arial,sans-serif" font-size="20" font-weight="800" letter-spacing="-0.3">
-    <tspan fill="#F0F4F5">3bt</tspan><tspan fill="#FF5252">afric</tspan>
+
+  <rect x="0" y="4" width="36" height="36" rx="10" fill="url(#tile)"/>
+  <text x="18" y="30" text-anchor="middle"
+        font-family="ui-sans-serif,system-ui,Segoe UI,Roboto,Arial,sans-serif"
+        font-size="19" font-weight="800" letter-spacing="-1.2" fill="#FFFFFF">22</text>
+
+  <text x="44" y="30"
+        font-family="ui-sans-serif,system-ui,Segoe UI,Roboto,Arial,sans-serif"
+        font-size="22" font-weight="800" letter-spacing="-0.6">
+    <tspan fill="#F0F4F5">bet</tspan><tspan fill="#FF7070">afro</tspan>
   </text>
 </svg>

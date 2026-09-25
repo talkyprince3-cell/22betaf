@@ -104,8 +104,10 @@ export function Header() {
   return (
     <header className="sticky top-0 z-40 bg-[var(--surface)]">
       <div className="flex h-[44px] w-full items-center gap-2 px-2.5 md:px-5">
+        {/* The full wordmark rather than the square mark: at 44px the bar has
+            the height for it, and the name is worth more here than a glyph. */}
         <Link href="/" className="flex shrink-0 items-center">
-          <Image src="/logo-mark.svg" alt="3btafric" width={26} height={26} priority />
+          <Image src="/logo.svg" alt="22betafro" width={109} height={24} priority />
         </Link>
 
         <div className="flex flex-1 items-center justify-end gap-2">
