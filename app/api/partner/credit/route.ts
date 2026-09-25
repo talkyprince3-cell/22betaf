@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/supabase";
-import { currentPartner } from "@/lib/partner";
+import { currentPartner, partnerCreditLimits } from "@/lib/partner";
 import { paymentReference } from "@/lib/codes";
 
 /**
@@ -19,14 +19,6 @@ import { paymentReference } from "@/lib/codes";
  * payment rail behind it. The operator reconciles against what the agent has
  * actually paid in.
  */
-
-/** Per-transaction and rolling-24h caps, so a mistake or a stolen session is bounded. */
-function limits() {
-  return {
-    perCredit: Number(process.env.PARTNER_CREDIT_MAX ?? 5000),
-    perDay: Number(process.env.PARTNER_CREDIT_DAILY_MAX ?? 20000),
-  };
-}
 
 export async function POST(req: Request) {
   const supabase = db();
@@ -49,7 +41,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Enter an amount" }, { status: 400 });
   }
 
-  const { perCredit, perDay } = limits();
+  const { perCredit, perDay } = partnerCreditLimits();
   if (amount > perCredit) {
     return NextResponse.json({ error: `The most you can credit at once is ${perCredit}` }, { status: 400 });
   }

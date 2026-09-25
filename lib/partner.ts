@@ -130,3 +130,20 @@ export function publicPartner(p: PartnerRow) {
   void _hash;
   return safe;
 }
+
+/**
+ * Caps on a partner crediting their own wallet.
+ * A blank or zero setting is not a cap of nothing: Number("") is 0, and that
+ * rejects every credit with "the most you can credit at once is 0".
+ */
+export function partnerCreditLimits() {
+  return {
+    perCredit: positiveLimit(process.env.PARTNER_CREDIT_MAX, 5000),
+    perDay: positiveLimit(process.env.PARTNER_CREDIT_DAILY_MAX, 20000),
+  };
+}
+
+function positiveLimit(value: string | undefined, fallback: number) {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+}

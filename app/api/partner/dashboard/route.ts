@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/supabase";
-import { currentPartner, publicPartner } from "@/lib/partner";
+import { currentPartner, partnerCreditLimits, publicPartner } from "@/lib/partner";
 import { startOfToday, totalPerCurrency } from "@/lib/money";
 
 export const dynamic = "force-dynamic";
@@ -68,7 +68,7 @@ export async function GET() {
     commissionCountToday: todayRows?.length ?? 0,
     wallet,
     creditedToday: Math.round(creditedToday * 100) / 100,
-    dailyLimit: Number(process.env.PARTNER_CREDIT_DAILY_MAX ?? 20000),
+    dailyLimit: partnerCreditLimits().perDay,
   });
 }
 
