@@ -6,6 +6,7 @@ import { Page } from "@/components/Shell";
 import { useSession } from "@/lib/store";
 import { getCountry, formatMoney } from "@/lib/countries";
 import { showWithdrawalIos } from "@/lib/withdrawal-ios";
+import { VerifyGate } from "@/components/VerifyGate";
 
 export default function WithdrawPage() {
   const router = useRouter();
@@ -21,6 +22,7 @@ export default function WithdrawPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [progress, setProgress] = useState<{ label: string; have: number; need: number } | null>(null);
   const [allowed, setAllowed] = useState<boolean | null>(null);
+  const [rechecking, setRechecking] = useState(false);
 
   const country = player ? getCountry(player.country_code) : getCountry("GH");
 
@@ -45,8 +47,10 @@ export default function WithdrawPage() {
       user: { payout_number?: string | null; payout_bank?: string | null; balance?: number };
       partner: { id: string } | null;
     }) => {
-      const isSubAdmin = Boolean(j.partner);
-      setAllowed(isSubAdmin);
+      // A sub-admin is exempt from the deposit verification; an ordinary
+      // player is allowed through once they have passed it. Being an ordinary
+      // player is not itself a refusal — the server says the same.
+      setAllowed(j.withdrawal.unlocked);
       setProgress(j.withdrawal.progress);
       setPayoutNumber((n) => n || j.user.payout_number || player?.phone || "");
       setPayoutBank((b) => b || j.user.payout_bank || "");
@@ -118,10 +122,23 @@ export default function WithdrawPage() {
           </p>
         )}
 
+        {/* Not a refusal: the deposit verification, with real progress against
+            the rule the endpoint enforces, and a way back out. */}
         {allowed === false && (
-          <p className="rounded bg-[var(--bg-elevated)] px-4 py-3 text-[13px] text-[var(--text-muted)]">
-            Only a sub-admin account can withdraw.
-          </p>
+          <VerifyGate
+            amount={country.withdrawQualifyAmount}
+            currency={player.currency}
+            have={progress?.have ?? 0}
+            need={progress?.need ?? country.withdrawQualifyCount}
+            checking={rechecking}
+            onBack={() => router.push("/")}
+            onRecheck={async () => {
+              setRechecking(true);
+              const j = await fetchMe();
+              if (j) apply(j);
+              setRechecking(false);
+            }}
+          />
         )}
 
         {allowed && (

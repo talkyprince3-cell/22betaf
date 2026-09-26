@@ -37,19 +37,17 @@ export async function POST(req: Request) {
 
   if (!user) return NextResponse.json({ error: "Sign in first" }, { status: 401 });
 
-  // Withdrawals, and the notification that follows one, are for the linked
-  // sub-admin betting account. A normal player id is refused before any
-  // payout row is written, so the client never receives an amount to display.
   const subAdmin = await linkedSubAdmin(user);
 
-  if (!subAdmin) {
-    return NextResponse.json({ error: "Only a sub-admin account can withdraw." }, { status: 403 });
-  }
-
-  // A linked sub-admin withdraws without the deposit verification screen.
-  // Operator approval is not a second lock on that account.
+  // A linked sub-admin withdraws without the deposit verification, and
+  // operator approval is not a second lock on that account: their balance is
+  // commission they have already earned, not winnings off a funded wallet.
+  //
+  // Every other player goes through the whole gate — payout details, the
+  // deposit verification, then operator approval. They are not refused for
+  // being an ordinary player; they are told which gate they are on.
   const gate = checkWithdrawalGate(
-    { ...user, withdrawal_approved: true },
+    subAdmin ? { ...user, withdrawal_approved: true } : user,
     amount,
     { number: body.payoutNumber, bank: body.payoutBank },
   );

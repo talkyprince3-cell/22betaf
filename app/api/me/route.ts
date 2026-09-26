@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/supabase";
 import { getCountry } from "@/lib/countries";
-import { checkWithdrawalGate } from "@/lib/withdrawals";
+import { checkWithdrawalGate, qualifiesForApproval } from "@/lib/withdrawals";
 import { linkedSubAdmin } from "@/lib/partner";
 
 /**
@@ -51,6 +51,9 @@ export async function GET(req: Request) {
         .maybeSingle()
     : { data: null };
 
+  // Passed the deposit verification, or exempt from it by being a sub-admin.
+  const verified = Boolean(partner) || qualifiesForApproval(user);
+
   return NextResponse.json({
     user,
     country: {
@@ -64,9 +67,14 @@ export async function GET(req: Request) {
       networks: country.networks,
     },
     withdrawal: {
-      // A linked sub-admin can withdraw without the deposit verification screen.
-      unlocked: Boolean(partner),
-      failed: partner ? undefined : gate.failed,
+      // A linked sub-admin skips the deposit verification; everyone else has
+      // to pass it before the withdraw form is worth showing.
+      //
+      // This reports the verification alone, not the whole gate: no amount is
+      // known on this read, and checkWithdrawalGate fails a zero amount on the
+      // balance check, so asking it outright would lock every player out.
+      unlocked: verified,
+      failed: verified ? undefined : "deposits",
       progress: gate.progress,
     },
     partner: partner ?? null,
