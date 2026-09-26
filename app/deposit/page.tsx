@@ -13,7 +13,7 @@ import {
   Check,
 } from "lucide-react";
 import { useSession } from "@/lib/store";
-import { getCountry, formatMoney, maskPhoneTail } from "@/lib/countries";
+import { getCountry, formatMoney } from "@/lib/countries";
 
 /**
  * The deposit screen.
@@ -88,6 +88,13 @@ export default function DepositPage() {
           : "Check your phone and approve the payment prompt.",
       );
 
+      // The rail answers "prompt sent" without knowing whether the handset can
+      // receive one, so waiting forever is a real outcome: a wrong or dormant
+      // number leaves the player on a spinner with nothing to act on. Give up
+      // after two minutes and point them at the number, which is the thing they
+      // can actually change.
+      const deadline = Date.now() + 120_000;
+
       pollRef.current = setInterval(async () => {
         try {
           const s = await fetch(`/api/deposits/status?reference=${json.reference}`);
@@ -97,10 +104,22 @@ export default function DepositPage() {
             setStatus(null);
             setDone({ balance: sj.balance, bonus: sj.bonusPaid });
             if (typeof sj.balance === "number") setBalance(sj.balance);
-          } else if (sj.status === "failed") {
+            return;
+          }
+          if (sj.status === "failed") {
             if (pollRef.current) clearInterval(pollRef.current);
             setStatus(null);
-            setError("That payment did not go through. Try again.");
+            setError("That payment did not go through. Check the number below and try again.");
+            return;
+          }
+          if (Date.now() > deadline) {
+            if (pollRef.current) clearInterval(pollRef.current);
+            setStatus(null);
+            setError(
+              `No prompt arrived on ${phone}. Check that number is the right mobile money number — tap Change above to use another — then try again. Nothing has been charged.`,
+            );
+            // Open the editor for them rather than making them find it.
+            setSwitching("phone");
           }
         } catch {
           /* keep polling */
@@ -157,16 +176,21 @@ export default function DepositPage() {
           {country.payoutRail === "bank" ? "Card / Bank" : "Mobile Money"}
         </p>
 
-        {/* Account rows */}
+        {/* Account rows.
+            The number is shown in full, not masked: this is the number the
+            approval prompt is sent to, and a player who cannot read it cannot
+            tell that it is the wrong one. It is their own number, on their own
+            screen, and getting it wrong is the difference between a prompt and
+            silence. */}
         <SwitchRow
           icon={<Smartphone size={20} strokeWidth={1.7} className="text-[var(--text-muted)]" />}
           value={
             <>
               <span className="text-[var(--text-muted)]">+{country.dialCode}</span>{" "}
-              <span className="text-[var(--text-bright)]">{maskPhoneTail(phone)}</span>
+              <span className="text-[var(--text-bright)]">{phone}</span>
             </>
           }
-          action={switching === "phone" ? "Done" : "Switch"}
+          action={switching === "phone" ? "Done" : "Change"}
           muted={switching !== "phone"}
           onAction={() => setSwitching(switching === "phone" ? null : "phone")}
         />
