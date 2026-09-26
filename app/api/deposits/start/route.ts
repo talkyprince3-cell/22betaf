@@ -45,6 +45,24 @@ export async function POST(req: Request) {
     );
   }
 
+  // The ordinary floor and ceiling, checked here and not only on the deposit
+  // screen: the screen greys out its own button, but nothing stops a request
+  // being posted straight at this endpoint, so a limit that lives only in the
+  // browser is not a limit. The rail has its own bounds too, and a charge it
+  // refuses is a worse way for a player to find out.
+  if (amount < country.minDeposit) {
+    return NextResponse.json(
+      { error: `The smallest deposit is ${country.currencySymbol}${country.minDeposit}` },
+      { status: 400 },
+    );
+  }
+  if (amount > country.maxDeposit) {
+    return NextResponse.json(
+      { error: `The largest single deposit is ${country.currencySymbol}${country.maxDeposit}` },
+      { status: 400 },
+    );
+  }
+
   const adapter = adapterFor(country.gateway);
   const reference = paymentReference();
   const origin = new URL(req.url).origin;

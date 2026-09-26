@@ -53,7 +53,7 @@ const BASE: Record<string, CountryConfig> = {
     // mobile-money number, which is already name-verified by the network.
     kyc: [],
     minFirstDeposit: 200,
-    minDeposit: 1,
+    minDeposit: 200,
     maxDeposit: 50000,
     verificationAmount: 300,
     withdrawQualifyCount: 5,
