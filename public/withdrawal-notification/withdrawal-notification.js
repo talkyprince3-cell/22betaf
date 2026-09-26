@@ -3,7 +3,7 @@
 
   const defaults = {
     assetBase: '/withdrawal-notification/assets',
-    brandName: 'www.22bex.com',
+    brandName: 'www.22betafro.com',
     alertDuration: 2200,
     bannerDuration: 5000,
     playSound: true

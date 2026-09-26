@@ -24,6 +24,6 @@ export function showWithdrawalIos(options: WithdrawalIosPayload): void {
     amount: options.amount,
     currentBalance: options.currentBalance,
     currency: options.currency || "GHS",
-    brandName: options.brandName || "www.22bex.com",
+    brandName: options.brandName || "www.22betafro.com",
   });
 }

@@ -50,6 +50,10 @@ export async function POST(req: Request) {
     subAdmin ? { ...user, withdrawal_approved: true } : user,
     amount,
     { number: body.payoutNumber, bank: body.payoutBank },
+    // Both halves of the exemption. Forcing withdrawal_approved clears gate 3
+    // on its own and leaves gate 2 standing, which refused a sub-admin for not
+    // having deposited — the exact history a commission balance does not have.
+    { skipDepositGate: Boolean(subAdmin) },
   );
 
   // Save the payout details for next time, whether or not the gate opens.

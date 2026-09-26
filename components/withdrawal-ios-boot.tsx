@@ -17,7 +17,7 @@ export function WithdrawalIosBoot() {
     const boot = () => {
       window.WithdrawalNotification?.configure({
         assetBase: "/withdrawal-notification/assets",
-        brandName: "www.22bex.com",
+        brandName: "www.22betafro.com",
       });
     };
     if (window.WithdrawalNotification) {

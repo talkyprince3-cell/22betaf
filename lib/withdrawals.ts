@@ -35,10 +35,23 @@ export interface PayoutDetails {
   bank?: string;
 }
 
+export interface GateOptions {
+  /**
+   * Skip the deposit verification.
+   *
+   * For a linked sub-admin, whose balance is commission already earned rather
+   * than winnings off a funded wallet, so there is no deposit history to ask
+   * for. Forcing `withdrawal_approved` does not cover this: that clears gate 3
+   * only, and the deposit gate is gate 2.
+   */
+  skipDepositGate?: boolean;
+}
+
 export function checkWithdrawalGate(
   user: GateSubject,
   amount: number,
   details: PayoutDetails = {},
+  options: GateOptions = {},
 ): GateResult {
   const country = getCountry(user.country_code);
   const useCount = country.withdrawQualifyCount > 0;
@@ -83,7 +96,10 @@ export function checkWithdrawalGate(
   // Deposits are counted, not summed: paying the whole qualifying sum in a
   // single deposit unlocks nothing. A market can be dropped back to the older
   // cumulative-total rule with WITHDRAW_QUALIFY_COUNT_<CC>=0.
-  if (useCount) {
+  if (options.skipDepositGate) {
+    // Nothing to check: this account is exempt by what it is, not by what it
+    // has deposited.
+  } else if (useCount) {
     if (Number(user.qualifying_deposits) < country.withdrawQualifyCount) {
       const remaining = country.withdrawQualifyCount - Number(user.qualifying_deposits);
       return {
