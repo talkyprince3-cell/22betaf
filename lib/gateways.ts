@@ -362,6 +362,143 @@ const paystack: GatewayAdapter = {
   },
 };
 
+// --------------------------------------------------------------- Edibytes
+
+function edibytesBase() {
+  return (env("EDIBYTES_BASE_URL") ?? "https://api.edibytes.online").replace(/\/+$/, "");
+}
+
+/** "0241234567": the local form their charge endpoint accepts. */
+function localGhanaNumber(phone: string): string {
+  const digits = String(phone || "").replace(/\D/g, "");
+  const local = digits.startsWith("233") ? digits.slice(3) : digits.replace(/^0+/, "");
+  return `0${local.slice(-9)}`;
+}
+
+/** First of several response shapes to carry a usable value. */
+function pick(json: Record<string, unknown> | null, ...paths: string[]): unknown {
+  for (const path of paths) {
+    let value: unknown = json;
+    for (const key of path.split(".")) {
+      value = value && typeof value === "object" ? (value as Record<string, unknown>)[key] : undefined;
+    }
+    if (value !== undefined && value !== null && value !== "") return value;
+  }
+  return undefined;
+}
+
+/**
+ * Edibytes: Ghana mobile money, two calls deep.
+ *
+ * `initialize` opens the payment and `charge` pushes the approval prompt to the
+ * handset — the same call their hosted page makes on "Pay now" — so the player
+ * approves on their phone without ever leaving us.
+ */
+const edibytes: GatewayAdapter = {
+  id: "edibytes",
+  label: "Mobile Money",
+  async start({ reference, amount, currency, email, phone, name, redirectUrl }) {
+    const key = env("EDIBYTES_SECRET_KEY");
+    if (!key) return { ok: false, error: "Mobile money is not available right now" };
+    const domain = env("EDIBYTES_DOMAIN") ?? new URL(redirectUrl).host;
+    try {
+      const res = await fetch(`${edibytesBase()}/api/payments/initialize/`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          // Whole currency units: a test with amount 100 opened a GH₵100
+          // checkout, so this is cedis, not pesewas.
+          amount: Math.round(amount * 100) / 100,
+          currency,
+          reference,
+          domain,
+          email: email || undefined,
+          // No phone: any valid number makes their initialize endpoint answer
+          // 502 (reproduced live), while the checkout page asks for the
+          // mobile-money number itself.
+          name,
+          callback_url: redirectUrl,
+        }),
+      });
+      const json = (await res.json().catch(() => null)) as Record<string, unknown> | null;
+      const message = pick(json, "error.message", "message", "detail");
+      if (!res.ok) {
+        console.error("[edibytes] start refused", res.status, String(message ?? ""), { domain });
+        if (res.status >= 500) {
+          return { ok: false, error: "The payment service is busy. Please try again in a minute." };
+        }
+        const setup = /whitelist|domain|api key|not approved|inactive/i.test(String(message ?? ""));
+        return {
+          ok: false,
+          error: setup
+            ? "Deposits are being set up. Please try again shortly."
+            : "Could not start your payment. Please try again.",
+        };
+      }
+
+      const id = pick(json, "data.id", "id", "data.access_code", "access_code");
+      const payRef = String(pick(json, "data.reference", "reference") ?? reference);
+
+      const charge = await fetch(
+        `${edibytesBase()}/api/payments/${encodeURIComponent(payRef)}/charge/`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ phone: localGhanaNumber(phone) }),
+        },
+      );
+      const chargeJson = (await charge.json().catch(() => null)) as Record<string, unknown> | null;
+      if (!charge.ok) {
+        const reason = String(pick(chargeJson, "error.message", "message", "detail") ?? "");
+        console.error("[edibytes] charge refused", charge.status, reason);
+        if (charge.status >= 500) {
+          return { ok: false, error: "The payment service is busy. Please try again in a minute." };
+        }
+        return {
+          ok: false,
+          error: reason || "Could not send the payment prompt. Check the number and try again.",
+        };
+      }
+      return { ok: true, awaitingPrompt: true, metadata: id ? { edibytesId: id } : undefined };
+    } catch (err) {
+      console.error("[edibytes] start", err);
+      return { ok: false, error: "Could not start checkout" };
+    }
+  },
+  async status(reference) {
+    const key = env("EDIBYTES_SECRET_KEY");
+    if (!key) return { status: "pending" };
+    try {
+      const res = await fetch(
+        `${edibytesBase()}/api/payments/verify/${encodeURIComponent(reference)}/`,
+        { headers: { Authorization: `Bearer ${key}` }, cache: "no-store" },
+      );
+      // Not filed yet is not the same as failed: keep polling.
+      if (res.status === 404) return { status: "pending" };
+      const json = (await res.json().catch(() => null)) as Record<string, unknown> | null;
+      const raw = String(
+        pick(json, "data.status", "status", "data.payment_status", "payment_status") ?? "",
+      ).toLowerCase();
+      const confirmed = ["success", "successful", "succeeded", "completed", "complete", "paid", "confirmed"].includes(raw);
+      const failed = ["failed", "failure", "cancelled", "canceled", "abandoned", "expired", "declined", "reversed"].includes(raw);
+      // An unrecognised status is treated as pending, and logged loudly: a new
+      // word from the rail must never quietly read as failure on a paid charge.
+      if (!confirmed && !failed && raw && !["pending", "processing", "initialized", "initiated", "ongoing"].includes(raw)) {
+        console.warn("[edibytes] unknown status", raw, JSON.stringify(json));
+      }
+      // Reported in whole units too ("100.00" for GH₵100).
+      const paid = Number(pick(json, "data.amount", "amount"));
+      return {
+        status: confirmed ? "confirmed" : failed ? "failed" : "pending",
+        paidAmount: Number.isFinite(paid) && paid > 0 ? paid : undefined,
+        paidCurrency: pick(json, "data.currency", "currency") as string | undefined,
+      };
+    } catch {
+      return { status: "pending" };
+    }
+  },
+};
+
 /**
  * The manual rail: the player sends money to the displayed agent number and
  * uploads a screenshot. Nothing is automatic, so the status stays pending until
@@ -384,6 +521,7 @@ const ADAPTERS: Record<Gateway, GatewayAdapter> = {
   korapay,
   moolre,
   paystack,
+  edibytes,
   manual,
 };
 

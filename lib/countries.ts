@@ -11,6 +11,7 @@ export type Gateway =
   | "korapay"
   | "moolre"
   | "paystack"
+  | "edibytes"
   | "manual";
 
 export type KycKind = "bvn" | "nin" | "national_id";
@@ -46,7 +47,7 @@ const BASE: Record<string, CountryConfig> = {
     currencySymbol: "GH₵",
     dialCode: "233",
     phoneDigits: 9,
-    gateway: "flutterwave_momo",
+    gateway: "edibytes",
     payoutRail: "mobile",
     // Ghana collects no KYC value at sign-up; identity is carried by the
     // mobile-money number, which is already name-verified by the network.
