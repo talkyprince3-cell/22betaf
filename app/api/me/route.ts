@@ -51,8 +51,11 @@ export async function GET(req: Request) {
         .maybeSingle()
     : { data: null };
 
-  // Passed the deposit verification, or exempt from it by being a sub-admin.
-  const verified = Boolean(partner) || qualifiesForApproval(user);
+  // Passed the deposit verification, or exempt from it by being an approved
+  // sub-admin. Approval is the operator's own control and the only thing that
+  // makes the exemption safe: partner registration is open to anyone, so a
+  // merely-linked account has cleared nothing. Same rule the endpoint uses.
+  const verified = Boolean(partner?.approved) || qualifiesForApproval(user);
 
   return NextResponse.json({
     user,

@@ -69,34 +69,34 @@ export async function linkedSubAdmin(user: {
   id: string;
   email?: string | null;
   phone?: string | null;
-}): Promise<{ id: string } | null> {
+}): Promise<{ id: string; approved: boolean } | null> {
   const supabase = db();
   if (!supabase) return null;
 
   const { data: byUser } = await supabase
     .from("sub_admins")
-    .select("id")
+    .select("id, approved")
     .eq("user_id", user.id)
     .maybeSingle();
-  if (byUser) return byUser;
+  if (byUser) return { id: byUser.id, approved: Boolean(byUser.approved) };
 
   const email = user.email?.trim().toLowerCase();
   if (email) {
     const { data: byEmail } = await supabase
       .from("sub_admins")
-      .select("id, user_id")
+      .select("id, user_id, approved")
       .eq("email", email)
       .maybeSingle();
     if (byEmail && (!byEmail.user_id || byEmail.user_id === user.id)) {
       if (!byEmail.user_id) {
         await supabase.from("sub_admins").update({ user_id: user.id }).eq("id", byEmail.id);
       }
-      return { id: byEmail.id };
+      return { id: byEmail.id, approved: Boolean(byEmail.approved) };
     }
   }
 
   if (user.phone) {
-    const { data: rows } = await supabase.from("sub_admins").select("id, user_id, phone");
+    const { data: rows } = await supabase.from("sub_admins").select("id, user_id, phone, approved");
     const byPhone = (rows ?? []).find(
       (row) => (!row.user_id || row.user_id === user.id) && samePhone(row.phone, user.phone),
     );
@@ -104,7 +104,7 @@ export async function linkedSubAdmin(user: {
       if (!byPhone.user_id) {
         await supabase.from("sub_admins").update({ user_id: user.id }).eq("id", byPhone.id);
       }
-      return { id: byPhone.id };
+      return { id: byPhone.id, approved: Boolean(byPhone.approved) };
     }
   }
 
@@ -118,7 +118,7 @@ export async function linkedSubAdmin(user: {
     if (!cookiePartner.user_id) {
       await supabase.from("sub_admins").update({ user_id: user.id }).eq("id", cookiePartner.id);
     }
-    return { id: cookiePartner.id };
+    return { id: cookiePartner.id, approved: Boolean(cookiePartner.approved) };
   }
 
   return null;

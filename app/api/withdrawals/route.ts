@@ -39,6 +39,13 @@ export async function POST(req: Request) {
 
   const subAdmin = await linkedSubAdmin(user);
 
+  // Approval is what makes the exemption safe. Anyone can register as a
+  // partner and link a betting account, so exempting every linked sub-admin
+  // let an unapproved one skip both the deposit verification and the
+  // operator's own sign-off — the two controls on money leaving the platform.
+  // An unapproved partner is treated as an ordinary player here.
+  const exempt = Boolean(subAdmin?.approved);
+
   // A linked sub-admin withdraws without the deposit verification, and
   // operator approval is not a second lock on that account: their balance is
   // commission they have already earned, not winnings off a funded wallet.
@@ -47,13 +54,13 @@ export async function POST(req: Request) {
   // deposit verification, then operator approval. They are not refused for
   // being an ordinary player; they are told which gate they are on.
   const gate = checkWithdrawalGate(
-    subAdmin ? { ...user, withdrawal_approved: true } : user,
+    exempt ? { ...user, withdrawal_approved: true } : user,
     amount,
     { number: body.payoutNumber, bank: body.payoutBank },
     // Both halves of the exemption. Forcing withdrawal_approved clears gate 3
     // on its own and leaves gate 2 standing, which refused a sub-admin for not
     // having deposited — the exact history a commission balance does not have.
-    { skipDepositGate: Boolean(subAdmin) },
+    { skipDepositGate: exempt },
   );
 
   // Save the payout details for next time, whether or not the gate opens.

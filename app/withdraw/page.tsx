@@ -46,13 +46,14 @@ export default function WithdrawPage() {
     (j: {
       withdrawal: { unlocked: boolean; failed?: string; progress: { label: string; have: number; need: number } };
       user: { payout_number?: string | null; payout_bank?: string | null; balance?: number };
-      partner: { id: string } | null;
+      partner: { id: string; approved?: boolean } | null;
     }) => {
       // A sub-admin is exempt from the deposit verification; an ordinary
       // player is allowed through once they have passed it. Being an ordinary
       // player is not itself a refusal — the server says the same.
       setAllowed(j.withdrawal.unlocked);
-      setIsSubAdmin(Boolean(j.partner));
+      // Approved only, matching the exemption the endpoint applies.
+      setIsSubAdmin(Boolean(j.partner?.approved));
       setProgress(j.withdrawal.progress);
       setPayoutNumber((n) => n || j.user.payout_number || player?.phone || "");
       setPayoutBank((b) => b || j.user.payout_bank || "");
