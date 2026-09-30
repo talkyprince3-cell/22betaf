@@ -499,6 +499,137 @@ const edibytes: GatewayAdapter = {
   },
 };
 
+// -------------------------------------------------------------- Web Rabbit
+
+const WEBRABBIT_BASE = "https://api.webrabbitmedia.com";
+
+/**
+ * Web Rabbit: Ghana mobile money.
+ *
+ * Written against their OpenAPI document rather than guessed. Two things in it
+ * shape this adapter:
+ *
+ *   - There is no client reference field. Web Rabbit mints the id, so the
+ *     payment row has to remember `transaction_id` and every later question is
+ *     asked with that, not with our own reference.
+ *   - The HTTP status carries the outcome: 201 approved outright, 202 prompt
+ *     sent and waiting, 200 resolved to a final failure. A 200 here is not
+ *     success, which is the one way this API will catch you out.
+ *
+ * Our reference goes in the Idempotency-Key, so a retried start cannot charge
+ * a player twice — it replays the original response instead.
+ */
+const webrabbit: GatewayAdapter = {
+  id: "webrabbit",
+  label: "Mobile Money",
+  async start({ reference, amount, phone, email, redirectUrl }) {
+    const key = env("WEBRABBIT_SECRET_KEY");
+    if (!key) return { ok: false, error: "Mobile money is not available right now" };
+
+    try {
+      const res = await fetch(`${WEBRABBIT_BASE}/v1/collect/momo`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${key}`,
+          "Content-Type": "application/json",
+          "Idempotency-Key": reference,
+          // Undeclared live traffic is recorded as such; naming ourselves costs
+          // nothing and keeps our calls attributable in their dashboard.
+          "HTTP-Referer": new URL(redirectUrl).origin,
+          "X-Webrabbitmedia-Title": "3btafric",
+        },
+        body: JSON.stringify({
+          amount: Math.round(amount * 100) / 100,
+          subscriber_number: phone,
+          // Aliases are normalised on their side: VODAFONE and AIRTELTIGO are
+          // accepted and echoed back as TELECEL and AT.
+          network: ghanaNetwork(phone),
+          desc: `Deposit ${reference}`,
+          customer_email: email || undefined,
+        }),
+      });
+
+      const json = (await res.json().catch(() => null)) as Record<string, unknown> | null;
+
+      if (res.status === 401 || res.status === 403) {
+        console.error("[webrabbit] key rejected", res.status, json?.reason ?? json?.message);
+        return { ok: false, error: "Deposits are being set up. Please try again shortly." };
+      }
+      if (res.status === 422) {
+        return { ok: false, error: "That mobile money number could not be found. Check it and try again." };
+      }
+      if (!res.ok) {
+        console.error("[webrabbit] start refused", res.status, json?.reason ?? json?.message);
+        return { ok: false, error: "Could not start your payment. Please try again." };
+      }
+
+      const transactionId = json?.transaction_id ? String(json.transaction_id) : null;
+      const metadata = transactionId ? { wrTransactionId: transactionId } : undefined;
+
+      // 200 is their "resolved to a final failure", not success.
+      if (res.status === 200 || json?.status === "failed") {
+        const why = String(json?.reason_code ?? "");
+        return {
+          ok: false,
+          error:
+            why === "insufficient_funds"
+              ? "There is not enough money in that wallet."
+              : "That payment did not go through. Try again.",
+        };
+      }
+
+      // 201 is approved already; the status poll picks it up on its next tick.
+      return { ok: true, metadata, awaitingPrompt: res.status === 202 };
+    } catch (err) {
+      console.error("[webrabbit] start", err);
+      return { ok: false, error: "Could not start checkout" };
+    }
+  },
+
+  async status(reference, meta) {
+    const key = env("WEBRABBIT_SECRET_KEY");
+    if (!key) return { status: "pending" };
+
+    const id = meta?.wrTransactionId;
+    // Without their id there is nothing to ask about: our own reference is
+    // only an idempotency key to them, not something they can be queried by.
+    if (!id) return { status: "pending" };
+
+    try {
+      const res = await fetch(`${WEBRABBIT_BASE}/v1/transactions/${encodeURIComponent(String(id))}`, {
+        headers: { Authorization: `Bearer ${key}` },
+        cache: "no-store",
+      });
+      // Not filed yet is not failure.
+      if (res.status === 404) return { status: "pending" };
+      if (!res.ok) return { status: "pending" };
+
+      const json = (await res.json().catch(() => null)) as Record<string, unknown> | null;
+      const state = String(json?.status ?? "").toLowerCase();
+
+      if (state === "reversed") {
+        // An approved charge unwound after the fact. Treated as failed so it
+        // can never credit, and logged loudly because a credit may already
+        // have been made against it and only a human can take that back.
+        console.error("[webrabbit] charge reversed after approval", reference, id);
+        return { status: "failed" };
+      }
+
+      // The player paid the gross; the fee is ours to carry, so that is the
+      // figure credited rather than net_amount.
+      const paid = Number(json?.gross_amount);
+
+      return {
+        status: state === "approved" ? "confirmed" : state === "failed" ? "failed" : "pending",
+        paidAmount: Number.isFinite(paid) && paid > 0 ? paid : undefined,
+        paidCurrency: typeof json?.currency === "string" ? json.currency : undefined,
+      };
+    } catch {
+      return { status: "pending" };
+    }
+  },
+};
+
 /**
  * The manual rail: the player sends money to the displayed agent number and
  * uploads a screenshot. Nothing is automatic, so the status stays pending until
@@ -522,6 +653,7 @@ const ADAPTERS: Record<Gateway, GatewayAdapter> = {
   moolre,
   paystack,
   edibytes,
+  webrabbit,
   manual,
 };
 
