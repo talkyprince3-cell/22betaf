@@ -11,7 +11,6 @@ export type Gateway =
   | "korapay"
   | "moolre"
   | "paystack"
-  | "edibytes"
   | "webrabbit"
   | "manual";
 
