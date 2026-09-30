@@ -389,13 +389,20 @@ const webrabbit: GatewayAdapter = {
     const key = env("WEBRABBIT_SECRET_KEY");
     if (!key) return { ok: false, error: "Mobile money is not available right now" };
 
+    // Their upstream rejects a reference carrying anything but letters and
+    // digits -- "Reference should not contain any special characters" -- and
+    // ours is BLX-XXXXXXXX-XXXXX. The hyphens failed every charge before this,
+    // so the reference is flattened on the way out. Stripping is deterministic
+    // and the segments keep it unique, so it still traces back to the row.
+    const plainRef = reference.replace(/[^A-Za-z0-9]/g, "");
+
     try {
       const res = await fetch(`${WEBRABBIT_BASE}/v1/collect/momo`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${key}`,
           "Content-Type": "application/json",
-          "Idempotency-Key": reference,
+          "Idempotency-Key": plainRef,
           // Undeclared live traffic is recorded as such; naming ourselves costs
           // nothing and keeps our calls attributable in their dashboard.
           "HTTP-Referer": new URL(redirectUrl).origin,
@@ -407,7 +414,7 @@ const webrabbit: GatewayAdapter = {
           // Aliases are normalised on their side: VODAFONE and AIRTELTIGO are
           // accepted and echoed back as TELECEL and AT.
           network: ghanaNetwork(phone),
-          desc: `Deposit ${reference}`,
+          desc: plainRef,
           customer_email: email || undefined,
         }),
       });
