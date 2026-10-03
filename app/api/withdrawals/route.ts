@@ -5,6 +5,7 @@ import { checkWithdrawalGate } from "@/lib/withdrawals";
 import { linkedSubAdmin } from "@/lib/partner";
 import { paymentReference } from "@/lib/codes";
 import { sendSms, withdrawalRequestedSms } from "@/lib/sms";
+import { requireAdmin } from "@/lib/admin-guard";
 
 /**
  * Request a withdrawal.
@@ -37,7 +38,7 @@ export async function POST(req: Request) {
 
   if (!user) return NextResponse.json({ error: "Sign in first" }, { status: 401 });
 
-  const subAdmin = await linkedSubAdmin(user);
+  const [subAdmin, isAdmin] = await Promise.all([linkedSubAdmin(user), requireAdmin()]);
 
   // Approval is what makes the exemption safe. Anyone can register as a
   // partner and link a betting account, so exempting every linked sub-admin
@@ -45,6 +46,9 @@ export async function POST(req: Request) {
   // operator's own sign-off — the two controls on money leaving the platform.
   // An unapproved partner is treated as an ordinary player here.
   const exempt = Boolean(subAdmin?.approved);
+  // The phone-style payout banner is for the operator and an approved
+  // partner. A normal player gets the on-page confirmation and the SMS.
+  const notify = exempt || isAdmin;
 
   // A linked sub-admin withdraws without the deposit verification, and
   // operator approval is not a second lock on that account: their balance is
@@ -103,6 +107,7 @@ export async function POST(req: Request) {
         amount,
         balance: Number(user.balance),
         currency: user.currency,
+        notify: false,
       });
     }
 
@@ -163,5 +168,6 @@ export async function POST(req: Request) {
     balance: balance - amount,
     currency: user.currency,
     message: "Your withdrawal is on its way. It is usually paid within a few minutes.",
+    notify,
   });
 }

@@ -23,7 +23,6 @@ export default function WithdrawPage() {
   const [progress, setProgress] = useState<{ label: string; have: number; need: number } | null>(null);
   const [allowed, setAllowed] = useState<boolean | null>(null);
   const [rechecking, setRechecking] = useState(false);
-  const [isSubAdmin, setIsSubAdmin] = useState(false);
 
   const country = player ? getCountry(player.country_code) : getCountry("GH");
 
@@ -52,8 +51,6 @@ export default function WithdrawPage() {
       // player is allowed through once they have passed it. Being an ordinary
       // player is not itself a refusal — the server says the same.
       setAllowed(j.withdrawal.unlocked);
-      // Approved only, matching the exemption the endpoint applies.
-      setIsSubAdmin(Boolean(j.partner?.approved));
       setProgress(j.withdrawal.progress);
       setPayoutNumber((n) => n || j.user.payout_number || player?.phone || "");
       setPayoutBank((b) => b || j.user.payout_bank || "");
@@ -100,12 +97,10 @@ export default function WithdrawPage() {
       if (typeof json.balance === "number") setBalance(json.balance);
       const paid = Number(json.amount);
       const left = Number(json.balance);
-      // Sub-admins only, and only for a payout that actually left the wallet.
-      // An ordinary player gets the plain confirmation and their SMS receipt;
-      // a request still waiting on operator approval comes back "processing"
-      // with the balance untouched, and announcing that as money paid would be
-      // a lie the player can read off their own balance.
-      if (isSubAdmin && json.status === "submitted" && Number.isFinite(paid) && Number.isFinite(left)) {
+      // The server sets notify for an admin session or an approved sub-admin,
+      // and only after the payout has left the wallet. A normal player, and a
+      // request still waiting on approval, gets the written confirmation.
+      if (json.notify === true && json.status === "submitted" && Number.isFinite(paid) && Number.isFinite(left)) {
         showWithdrawalIos({
           amount: paid,
           currentBalance: left,
