@@ -134,7 +134,7 @@ async function v4Outcome(reference: string, meta?: Record<string, unknown>): Pro
 const flutterwaveMomo: GatewayAdapter = {
   id: "flutterwave_momo",
   label: "Mobile money",
-  async start({ reference, amount, currency, phone, email, name }) {
+  async start({ reference, amount, currency, phone, email, name, redirectUrl }) {
     if (!v4Configured()) return { ok: false, error: "Mobile money is not available right now" };
 
     const customer = await createCustomer({
@@ -163,7 +163,10 @@ const flutterwaveMomo: GatewayAdapter = {
       currency,
       customerId: customer.data.id,
       paymentMethodId: method.data.id,
-      redirectUrl: "",
+      // The real one, not an empty string. Mobile money normally resolves on
+      // the handset, but v4 can still answer with a redirect step, and an
+      // empty redirect_url leaves the player nowhere to come back to.
+      redirectUrl,
     });
     if (!charge.ok || !charge.data) {
       return { ok: false, error: charge.error ?? "Could not start the charge" };
