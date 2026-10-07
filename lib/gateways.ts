@@ -480,8 +480,15 @@ const theteller: GatewayAdapter = {
       const reason = String(json?.reason ?? "");
 
       // Keep the id whatever happens: without it a charge cannot be chased up
-      // on their side, and a failed start never gets to write metadata.
-      const metadata = { tellerTransactionId: transactionId };
+      // on their side, and a failed start never gets to write metadata. The
+      // number and network go with it because a decline is usually about the
+      // wallet, and the row otherwise records which player asked but not what
+      // was actually charged.
+      const metadata = {
+        tellerTransactionId: transactionId,
+        subscriberNumber: localGhanaNumber(phone),
+        network: tellerSwitch(network, phone),
+      };
 
       if (code === "000") return { ok: true, metadata };
       if (code === "111") return { ok: true, metadata, awaitingPrompt: true };
