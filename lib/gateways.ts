@@ -520,6 +520,167 @@ const webrabbit: GatewayAdapter = {
   },
 };
 
+// -------------------------------------------------------------- theTeller
+
+function thetellerBase(): string {
+  // Production unless a deployment deliberately asks for the test host, so a
+  // missing variable cannot quietly point live traffic at a sandbox.
+  return env("THETELLER_ENV") === "test"
+    ? "https://test.theteller.net"
+    : "https://prod.theteller.net";
+}
+
+/** `Authorization: Basic base64(username:apiKey)`, as their docs specify. */
+function thetellerAuth(): string | null {
+  const user = env("THETELLER_USERNAME");
+  const key = env("THETELLER_API_KEY");
+  if (!user || !key) return null;
+  return Buffer.from(`${user}:${key}`, "utf8").toString("base64");
+}
+
+/**
+ * A transaction id theTeller will accept: exactly 12 digits, and unique.
+ *
+ * Our own BLX-XXXXXXXX-XXXXX cannot be used — not the right shape, and not
+ * numeric — so one is minted here and kept on the payment row, the way Web
+ * Rabbit's id is. A reused id is refused outright with code 909, so this is
+ * time-ordered with a random tail rather than random alone.
+ */
+function tellerTransactionId(): string {
+  const stamp = String(Date.now()).slice(-8);
+  const tail = String(Math.floor(Math.random() * 10_000)).padStart(4, "0");
+  return `${stamp}${tail}`;
+}
+
+/** Their r-switch codes, from the network our own prefix check reports. */
+function tellerSwitch(phone: string): "MTN" | "VDF" | "ATL" {
+  const network = ghanaNetwork(phone);
+  if (network === "VODAFONE") return "VDF";
+  if (network === "AIRTELTIGO") return "ATL";
+  return "MTN";
+}
+
+/**
+ * theTeller: Ghana mobile money.
+ *
+ * Their codes carry the outcome and HTTP status does not, so everything turns
+ * on `code`: 000 approved, 111 the prompt is out and the customer has not
+ * acted yet, and the rest are refusals. 600, 979 and 999 are configuration
+ * faults — denied access, bad credentials, missing merchant id — and are kept
+ * apart from a declined payment because they are the operator's problem, not
+ * the player's.
+ */
+const theteller: GatewayAdapter = {
+  id: "theteller",
+  label: "Mobile Money",
+  async start({ reference, amount, phone }) {
+    const auth = thetellerAuth();
+    const merchantId = env("THETELLER_MERCHANT_ID");
+    if (!auth || !merchantId) return { ok: false, error: "Mobile money is not available right now" };
+
+    const transactionId = tellerTransactionId();
+
+    try {
+      const res = await fetch(`${thetellerBase()}/v1.1/transaction/process`, {
+        method: "POST",
+        headers: {
+          Authorization: `Basic ${auth}`,
+          "Content-Type": "application/json",
+          "Cache-Control": "no-cache",
+        },
+        body: JSON.stringify({
+          // Pesewas, zero-padded to twelve: "000000000100" is GHS 1.
+          amount: String(Math.round(amount * 100)).padStart(12, "0"),
+          processing_code: "000200",
+          transaction_id: transactionId,
+          desc: reference.replace(/[^A-Za-z0-9]/g, ""),
+          merchant_id: merchantId,
+          subscriber_number: phone.replace(/\D/g, ""),
+          "r-switch": tellerSwitch(phone),
+        }),
+      });
+
+      const json = (await res.json().catch(() => null)) as Record<string, unknown> | null;
+      const code = String(json?.code ?? "");
+      const reason = String(json?.reason ?? "");
+
+      // Keep the id whatever happens: without it a charge cannot be chased up
+      // on their side, and a failed start never gets to write metadata.
+      const metadata = { tellerTransactionId: transactionId };
+
+      if (code === "000") return { ok: true, metadata };
+      if (code === "111") return { ok: true, metadata, awaitingPrompt: true };
+
+      if (code === "600" || code === "979" || code === "999" || code === "909") {
+        console.error("[theteller] configuration refused", { reference, transactionId, code, reason });
+        return { ok: false, error: "Deposits are being set up. Please try again shortly." };
+      }
+
+      console.error("[theteller] charge refused", { reference, transactionId, code, reason });
+      return {
+        ok: false,
+        error:
+          code === "105"
+            ? "That amount was not accepted. Try a different amount."
+            : "That payment did not go through. Try again.",
+      };
+    } catch (err) {
+      console.error("[theteller] start", err);
+      return { ok: false, error: "Could not start checkout" };
+    }
+  },
+
+  async status(reference, meta) {
+    const auth = thetellerAuth();
+    const merchantId = env("THETELLER_MERCHANT_ID");
+    const id = meta?.tellerTransactionId;
+    if (!auth || !merchantId || !id) return { status: "pending" };
+
+    try {
+      const res = await fetch(
+        `${thetellerBase()}/v1.1/users/transactions/${encodeURIComponent(String(id))}/status`,
+        {
+          headers: {
+            Authorization: `Basic ${auth}`,
+            "Merchant-Id": merchantId,
+            "Cache-Control": "no-cache",
+          },
+          cache: "no-store",
+        },
+      );
+      if (!res.ok) return { status: "pending" };
+
+      const json = (await res.json().catch(() => null)) as Record<string, unknown> | null;
+      const code = String(json?.code ?? "");
+      const state = String(json?.status ?? "").toLowerCase();
+
+      if (code === "000" || state === "approved") {
+        // Not symmetrical: the charge goes out in pesewas as a padded string,
+        // and the status comes back in whole cedis as a number. A GHS 1 charge
+        // sent as "000000000100" reads back as 1. Dividing by a hundred here
+        // would credit a player a hundredth of what they paid.
+        const paid = Number(json?.amount);
+        return {
+          status: "confirmed",
+          paidAmount: Number.isFinite(paid) && paid > 0 ? paid : undefined,
+        };
+      }
+      // 111 is the prompt still out. Anything unrecognised is also left
+      // pending: a word we do not know must never read as a refusal on a
+      // charge the customer may yet approve.
+      if (code === "111" || state === "pending") return { status: "pending" };
+      if (state === "declined" || state === "failed") return { status: "failed" };
+
+      if (code && code !== "111") {
+        console.warn("[theteller] unmapped status", { reference, id, code, state });
+      }
+      return { status: "pending" };
+    } catch {
+      return { status: "pending" };
+    }
+  },
+};
+
 /**
  * The manual rail: the player sends money to the displayed agent number and
  * uploads a screenshot. Nothing is automatic, so the status stays pending until
@@ -543,6 +704,7 @@ const ADAPTERS: Record<Gateway, GatewayAdapter> = {
   moolre,
   paystack,
   webrabbit,
+  theteller,
   manual,
 };
 
