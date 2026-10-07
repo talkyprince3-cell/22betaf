@@ -506,6 +506,13 @@ const theteller: GatewayAdapter = {
       // pending: a word we do not know must never read as a refusal on a
       // charge the customer may yet approve.
       if (code === "111" || state === "pending") return { status: "pending" };
+
+      // They reuse 999 for "Transaction not found", which is the same answer a
+      // charge gives before it has been filed -- not a refusal. Reading it as
+      // one would mark a payment failed while the customer is still holding
+      // the prompt, and the reconcile sweep would write that down for good.
+      if (/not found/i.test(String(json?.reason ?? ""))) return { status: "pending" };
+
       if (state === "declined" || state === "failed") return { status: "failed" };
 
       if (code && code !== "111") {
