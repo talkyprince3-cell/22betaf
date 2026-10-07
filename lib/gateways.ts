@@ -416,9 +416,18 @@ const theteller: GatewayAdapter = {
 
     const transactionId = tellerTransactionId();
 
+    // Their process endpoint rings the handset and then holds the connection
+    // open waiting for the customer, sometimes answering nothing at all --
+    // measured at two minutes with zero bytes while the prompt had already
+    // arrived. Left unbounded that becomes a function timeout, and the player
+    // is told the payment failed while a live prompt sits on their phone.
+    const abort = new AbortController();
+    const timer = setTimeout(() => abort.abort(), 25_000);
+
     try {
       const res = await fetch(`${thetellerBase()}/v1.1/transaction/process`, {
         method: "POST",
+        signal: abort.signal,
         headers: {
           Authorization: `Basic ${auth}`,
           "Content-Type": "application/json",
@@ -462,8 +471,24 @@ const theteller: GatewayAdapter = {
             : "That payment did not go through. Try again.",
       };
     } catch (err) {
-      console.error("[theteller] start", err);
-      return { ok: false, error: "Could not start checkout" };
+      // A charge that never answered still rang the phone, so this is not a
+      // failure -- it is an unknown that only the status call can settle. The
+      // id goes back with it and the poll takes over, which is the one path
+      // that cannot credit a player twice or write off a payment they are
+      // about to approve.
+      console.error("[theteller] start did not answer", {
+        reference,
+        transactionId,
+        aborted: abort.signal.aborted,
+        err,
+      });
+      return {
+        ok: true,
+        metadata: { tellerTransactionId: transactionId },
+        awaitingPrompt: true,
+      };
+    } finally {
+      clearTimeout(timer);
     }
   },
 
@@ -474,6 +499,9 @@ const theteller: GatewayAdapter = {
     if (!auth || !merchantId || !id) return { status: "pending" };
 
     try {
+      // Bounded for the same reason the charge is: their host can accept a
+      // connection and then answer nothing. A poll that hangs is a poll that
+      // never runs again.
       const res = await fetch(
         `${thetellerBase()}/v1.1/users/transactions/${encodeURIComponent(String(id))}/status`,
         {
@@ -483,6 +511,7 @@ const theteller: GatewayAdapter = {
             "Cache-Control": "no-cache",
           },
           cache: "no-store",
+          signal: AbortSignal.timeout(15_000),
         },
       );
       if (!res.ok) return { status: "pending" };
