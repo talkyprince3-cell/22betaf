@@ -388,6 +388,19 @@ function tellerTransactionId(): string {
   return `${stamp}${tail}`;
 }
 
+/**
+ * "0241234567": the local form theTeller's own samples use.
+ *
+ * Our rows hold the international 233XXXXXXXXX, and a charge sent that way is
+ * declined -- the same payload with a local number is approved. Handles a
+ * number typed either way, since the deposit screen lets a player edit it.
+ */
+function localGhanaNumber(phone: string): string {
+  const digits = String(phone || "").replace(/\D/g, "");
+  const local = digits.startsWith("233") ? digits.slice(3) : digits.replace(/^0+/, "");
+  return `0${local.slice(-9)}`;
+}
+
 /** Their r-switch codes, from the network our own prefix check reports. */
 function tellerSwitch(phone: string): "MTN" | "VDF" | "ATL" {
   const network = ghanaNetwork(phone);
@@ -440,7 +453,7 @@ const theteller: GatewayAdapter = {
           transaction_id: transactionId,
           desc: reference.replace(/[^A-Za-z0-9]/g, ""),
           merchant_id: merchantId,
-          subscriber_number: phone.replace(/\D/g, ""),
+          subscriber_number: localGhanaNumber(phone),
           "r-switch": tellerSwitch(phone),
         }),
       });

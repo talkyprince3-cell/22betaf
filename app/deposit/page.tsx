@@ -14,7 +14,7 @@ import {
   Upload,
 } from "lucide-react";
 import { useSession } from "@/lib/store";
-import { getCountry, formatMoney } from "@/lib/countries";
+import { getCountry, formatMoney, localSignificant } from "@/lib/countries";
 
 type Rail = "momo" | "manual";
 
@@ -243,7 +243,7 @@ export default function DepositPage() {
               value={
                 <>
                   <span className="text-[var(--text-muted)]">+{country.dialCode}</span>{" "}
-                  <span className="text-[var(--text-bright)]">{phone}</span>
+                  <span className="text-[var(--text-bright)]">{localSignificant(phone, country.dialCode)}</span>
                 </>
               }
               action={switching === "phone" ? "Done" : "Change"}

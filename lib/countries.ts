@@ -180,6 +180,19 @@ export function formatMoney(amount: number, currency: string): string {
 
 
 /** "53****086" — enough of a number to recognise, not enough to reuse. */
+/**
+ * The significant digits, with the country code and any leading zero removed.
+ *
+ * A row holds 233XXXXXXXXX while a player may type 0XXXXXXXXX, and the deposit
+ * screen renders this after a "+233" of its own -- so handing it the stored
+ * form prints the country code twice.
+ */
+export function localSignificant(phone: string, dialCode: string): string {
+  const digits = String(phone || "").replace(/\D/g, "");
+  const local = digits.startsWith(dialCode) ? digits.slice(dialCode.length) : digits;
+  return local.replace(/^0+/, "");
+}
+
 export function maskPhoneTail(phone: string): string {
   const d = (phone || "").replace(/\D/g, "");
   if (d.length < 6) return d;
