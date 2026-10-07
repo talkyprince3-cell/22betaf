@@ -62,6 +62,14 @@ export interface GatewayAdapter {
 
 export interface StartOpts {
   reference: string;
+  /**
+   * The network the player picked on the deposit screen, as its label.
+   *
+   * Absent on a rail that never asks. The prefix is only a guess — Ghana has
+   * had number portability since 2011, so a 024 that now sits on AirtelTigo is
+   * ordinary, and charging it as MTN is refused by the rail.
+   */
+  network?: string;
   amount: number;
   currency: string;
   phone: string;
@@ -86,6 +94,15 @@ function env(name: string): string | null {
  * Telecel Cash is still VODAFONE to the rail, whatever the network calls itself
  * now. These are the codes a working v4 integration sends.
  */
+/** What the player chose, falling back to what their prefix suggests. */
+export function resolveNetwork(label: string | undefined, phone: string): "MTN" | "VODAFONE" | "AIRTELTIGO" {
+  const n = (label ?? "").toLowerCase();
+  if (n.includes("mtn")) return "MTN";
+  if (n.includes("telecel") || n.includes("vodafone")) return "VODAFONE";
+  if (n.includes("airtel") || n.includes("tigo")) return "AIRTELTIGO";
+  return ghanaNetwork(phone);
+}
+
 export function ghanaNetwork(phone: string): "MTN" | "VODAFONE" | "AIRTELTIGO" {
   const digits = String(phone || "").replace(/\D/g, "");
   // Reduce to the local significant number, however it was typed.
@@ -134,7 +151,7 @@ async function v4Outcome(reference: string, meta?: Record<string, unknown>): Pro
 const flutterwaveMomo: GatewayAdapter = {
   id: "flutterwave_momo",
   label: "Mobile money",
-  async start({ reference, amount, currency, phone, email, name, redirectUrl }) {
+  async start({ reference, amount, currency, phone, email, name, redirectUrl, network }) {
     if (!v4Configured()) return { ok: false, error: "Mobile money is not available right now" };
 
     const customer = await createCustomer({
@@ -150,7 +167,7 @@ const flutterwaveMomo: GatewayAdapter = {
 
     const method = await createMobileMoneyPaymentMethod({
       countryCode: "233",
-      network: ghanaNetwork(phone),
+      network: resolveNetwork(network, phone),
       phone,
     });
     if (!method.ok || !method.data?.id) {
@@ -402,8 +419,8 @@ function localGhanaNumber(phone: string): string {
 }
 
 /** Their r-switch codes, from the network our own prefix check reports. */
-function tellerSwitch(phone: string): "MTN" | "VDF" | "ATL" {
-  const network = ghanaNetwork(phone);
+function tellerSwitch(label: string | undefined, phone: string): "MTN" | "VDF" | "ATL" {
+  const network = resolveNetwork(label, phone);
   if (network === "VODAFONE") return "VDF";
   if (network === "AIRTELTIGO") return "ATL";
   return "MTN";
@@ -422,7 +439,7 @@ function tellerSwitch(phone: string): "MTN" | "VDF" | "ATL" {
 const theteller: GatewayAdapter = {
   id: "theteller",
   label: "Mobile Money",
-  async start({ reference, amount, phone }) {
+  async start({ reference, amount, phone, network }) {
     const auth = thetellerAuth();
     const merchantId = env("THETELLER_MERCHANT_ID");
     if (!auth || !merchantId) return { ok: false, error: "Mobile money is not available right now" };
@@ -454,7 +471,7 @@ const theteller: GatewayAdapter = {
           desc: reference.replace(/[^A-Za-z0-9]/g, ""),
           merchant_id: merchantId,
           subscriber_number: localGhanaNumber(phone),
-          "r-switch": tellerSwitch(phone),
+          "r-switch": tellerSwitch(network, phone),
         }),
       });
 
