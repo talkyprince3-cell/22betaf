@@ -82,6 +82,7 @@ export default function WithdrawPage() {
     try {
       const res = await fetch("/api/withdrawals", {
         method: "POST",
+        credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId: player.id, amount, payoutNumber, payoutBank }),
       });
@@ -97,10 +98,15 @@ export default function WithdrawPage() {
       if (typeof json.balance === "number") setBalance(json.balance);
       const paid = Number(json.amount);
       const left = Number(json.balance);
-      // The server sets notify for an admin session or an approved sub-admin,
-      // and only after the payout has left the wallet. A normal player, and a
-      // request still waiting on approval, gets the written confirmation.
-      if (json.notify === true && json.status === "submitted" && Number.isFinite(paid) && Number.isFinite(left)) {
+      // Plays after verification. A player who has not cleared it never gets
+      // notify. Admin and approved sub-admin requests are already past that gate.
+      if (
+        json.notify === true &&
+        (json.status === "submitted" || json.status === "processing") &&
+        Number.isFinite(paid) &&
+        paid > 0 &&
+        Number.isFinite(left)
+      ) {
         showWithdrawalIos({
           amount: paid,
           currentBalance: left,

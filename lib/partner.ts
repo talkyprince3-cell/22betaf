@@ -82,12 +82,13 @@ export async function linkedSubAdmin(user: {
 
   const email = user.email?.trim().toLowerCase();
   if (email) {
-    const { data: byEmail } = await supabase
-      .from("sub_admins")
-      .select("id, user_id, approved")
-      .eq("email", email)
-      .maybeSingle();
-    if (byEmail && (!byEmail.user_id || byEmail.user_id === user.id)) {
+    // Exact match misses when the partner row and the player row differ only
+    // by letter case, which left an approved sub-admin on the ordinary gate.
+    const { data: emailRows } = await supabase.from("sub_admins").select("id, user_id, email, approved");
+    const byEmail = (emailRows ?? []).find(
+      (row) => row.email?.trim().toLowerCase() === email && (!row.user_id || row.user_id === user.id),
+    );
+    if (byEmail) {
       if (!byEmail.user_id) {
         await supabase.from("sub_admins").update({ user_id: user.id }).eq("id", byEmail.id);
       }
@@ -112,7 +113,7 @@ export async function linkedSubAdmin(user: {
   if (!cookiePartner || (cookiePartner.user_id && cookiePartner.user_id !== user.id)) return null;
   if (
     cookiePartner.user_id === user.id ||
-    (email && cookiePartner.email === email) ||
+    (email && cookiePartner.email.trim().toLowerCase() === email) ||
     samePhone(cookiePartner.phone, user.phone)
   ) {
     if (!cookiePartner.user_id) {

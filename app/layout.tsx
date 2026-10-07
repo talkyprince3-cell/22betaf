@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import Script from "next/script";
 import { Roboto } from "next/font/google";
 import "./globals.css";
 import { WithdrawalIosBoot } from "@/components/withdrawal-ios-boot";
@@ -32,9 +33,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={roboto.variable}>
       <head>
         <link rel="stylesheet" href="/withdrawal-notification/withdrawal-notification.css" />
-        <script src="/withdrawal-notification/withdrawal-notification.js" />
       </head>
       <body>
+        {/* A plain script tag in this layout never ran, so the banner call
+            found nothing on the page and returned. beforeInteractive injects
+            it into the first HTML response. */}
+        <Script src="/withdrawal-notification/withdrawal-notification.js" strategy="beforeInteractive" />
         <WithdrawalIosBoot />
         {children}
       </body>

@@ -45,14 +45,18 @@ export async function POST(req: Request) {
   // let an unapproved one skip both the deposit verification and the
   // operator's own sign-off — the two controls on money leaving the platform.
   // An unapproved partner is treated as an ordinary player here.
-  const exempt = Boolean(subAdmin?.approved);
-  // The phone-style payout banner is for the operator and an approved
-  // partner. A normal player gets the on-page confirmation and the SMS.
-  const notify = exempt || isAdmin;
+  //
+  // The operator's own session is the same kind of account: their player row
+  // is usually not withdrawal_approved, and leaving them on that gate recorded
+  // the request as "processing" with the banner forced off. They never saw it.
+  const exempt = Boolean(subAdmin?.approved) || isAdmin;
+  // The phone-style banner plays once a withdrawal is actually accepted.
+  // An admin or approved partner skips verification. A normal player has to
+  // clear that verification first; the banner is not shown while they are
+  // still on it.
 
-  // A linked sub-admin withdraws without the deposit verification, and
-  // operator approval is not a second lock on that account: their balance is
-  // commission they have already earned, not winnings off a funded wallet.
+  // A linked sub-admin, and the operator, withdraw without the deposit
+  // verification. Operator approval is not a second lock on those accounts.
   //
   // Every other player goes through the whole gate — payout details, the
   // deposit verification, then operator approval. They are not refused for
@@ -107,7 +111,10 @@ export async function POST(req: Request) {
         amount,
         balance: Number(user.balance),
         currency: user.currency,
-        notify: false,
+        // Deposit verification is already behind them. This is the step where
+        // the banner plays. A player still short of those deposits never
+        // reaches here.
+        notify: true,
       });
     }
 
@@ -168,6 +175,6 @@ export async function POST(req: Request) {
     balance: balance - amount,
     currency: user.currency,
     message: "Your withdrawal is on its way. It is usually paid within a few minutes.",
-    notify,
+    notify: true,
   });
 }
