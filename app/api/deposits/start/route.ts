@@ -93,7 +93,17 @@ export async function POST(req: Request) {
   });
 
   if (!result.ok) {
-    await supabase.from("payments").update({ status: "failed" }).eq("reference", reference);
+    // Keep whatever the rail told us about the attempt. A failed charge still
+    // has an id on their side, and without it on the row there is no way to
+    // ask them afterwards what went wrong -- which is exactly the position a
+    // refused deposit leaves an operator in.
+    await supabase
+      .from("payments")
+      .update({
+        status: "failed",
+        metadata: { type: "deposit", gateway: adapter.id, ...(result.metadata ?? {}) },
+      })
+      .eq("reference", reference);
     return NextResponse.json({ error: result.error ?? "Could not start your deposit" }, { status: 502 });
   }
 

@@ -201,170 +201,6 @@ const flutterwaveCard: GatewayAdapter = {
   status: v4Outcome,
 };
 
-// ---------------------------------------------------------------- Korapay
-
-const korapay: GatewayAdapter = {
-  id: "korapay",
-  label: "Korapay",
-  async start({ reference, amount, currency, email, name, redirectUrl }) {
-    const key = env("KORAPAY_SECRET_KEY");
-    if (!key) return { ok: false, error: "Korapay is not available right now" };
-    try {
-      const res = await fetch("https://api.korapay.com/merchant/api/v1/charges/initialize", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          reference,
-          amount,
-          currency,
-          redirect_url: redirectUrl,
-          customer: { email: email || "player@3btafric.com", name },
-          notification_url: `${redirectUrl.split("/account")[0]}/api/deposits/korapay/webhook`,
-        }),
-      });
-      const json = await res.json();
-      if (!json?.status) return { ok: false, error: json?.message ?? "Could not start checkout" };
-      return { ok: true, redirectUrl: json.data?.checkout_url };
-    } catch (err) {
-      console.error("[korapay] start", err);
-      return { ok: false, error: "Could not start checkout" };
-    }
-  },
-  async status(reference) {
-    const key = env("KORAPAY_SECRET_KEY");
-    if (!key) return { status: "pending" };
-    try {
-      const res = await fetch(`https://api.korapay.com/merchant/api/v1/charges/${encodeURIComponent(reference)}`, {
-        headers: { Authorization: `Bearer ${key}` },
-      });
-      const json = await res.json();
-      const s = String(json?.data?.status ?? "").toLowerCase();
-      const status: ChargeStatus =
-        s === "success" ? "confirmed" : s === "failed" || s === "expired" ? "failed" : "pending";
-      const paid = Number(json?.data?.amount);
-      return {
-        status,
-        paidAmount: Number.isFinite(paid) && paid > 0 ? paid : undefined,
-        paidCurrency: json?.data?.currency,
-      };
-    } catch {
-      return { status: "pending" };
-    }
-  },
-};
-
-// ----------------------------------------------------------------- Moolre
-
-const moolre: GatewayAdapter = {
-  id: "moolre",
-  label: "Moolre",
-  async start({ reference, amount, currency, phone }) {
-    const key = env("MOOLRE_API_KEY");
-    const user = env("MOOLRE_API_USER");
-    const account = env("MOOLRE_ACCOUNT_NUMBER");
-    if (!key || !user || !account) return { ok: false, error: "Moolre is not available right now" };
-    try {
-      const res = await fetch("https://api.moolre.com/open/transact/receive", {
-        method: "POST",
-        headers: { "X-API-USER": user, "X-API-PUBKEY": key, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type: 1,
-          channel: 13,
-          currency,
-          payer: phone,
-          amount,
-          accountnumber: account,
-          reference,
-          externalref: reference,
-        }),
-      });
-      const json = await res.json();
-      if (json?.status !== 1) return { ok: false, error: json?.message ?? "Could not start the charge" };
-      return { ok: true, awaitingPrompt: true };
-    } catch (err) {
-      console.error("[moolre] start", err);
-      return { ok: false, error: "Could not start the charge" };
-    }
-  },
-  async status(reference) {
-    const key = env("MOOLRE_API_KEY");
-    const user = env("MOOLRE_API_USER");
-    const account = env("MOOLRE_ACCOUNT_NUMBER");
-    if (!key || !user || !account) return { status: "pending" };
-    try {
-      const res = await fetch("https://api.moolre.com/open/transact/status", {
-        method: "POST",
-        headers: { "X-API-USER": user, "X-API-PUBKEY": key, "Content-Type": "application/json" },
-        body: JSON.stringify({ type: 1, accountnumber: account, externalref: reference }),
-      });
-      const json = await res.json();
-      const code = Number(json?.data?.txstatus ?? json?.status);
-      const status: ChargeStatus = code === 1 ? "confirmed" : code === 2 || code === 3 ? "failed" : "pending";
-      const paid = Number(json?.data?.amount);
-      return {
-        status,
-        paidAmount: Number.isFinite(paid) && paid > 0 ? paid : undefined,
-        paidCurrency: json?.data?.currency,
-      };
-    } catch {
-      return { status: "pending" };
-    }
-  },
-};
-
-// ---------------------------------------------------------------- Paystack
-
-const paystack: GatewayAdapter = {
-  id: "paystack",
-  label: "Paystack",
-  async start({ reference, amount, currency, email, phone, redirectUrl }) {
-    const key = env("PAYSTACK_SECRET_KEY");
-    if (!key) return { ok: false, error: "Paystack is not available right now" };
-    try {
-      const res = await fetch("https://api.paystack.co/transaction/initialize", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          reference,
-          // Paystack takes the minor unit.
-          amount: Math.round(amount * 100),
-          currency,
-          email: email || `${phone}@3btafric.com`,
-          callback_url: redirectUrl,
-        }),
-      });
-      const json = await res.json();
-      if (!json?.status) return { ok: false, error: json?.message ?? "Could not start checkout" };
-      return { ok: true, redirectUrl: json.data?.authorization_url };
-    } catch (err) {
-      console.error("[paystack] start", err);
-      return { ok: false, error: "Could not start checkout" };
-    }
-  },
-  async status(reference) {
-    const key = env("PAYSTACK_SECRET_KEY");
-    if (!key) return { status: "pending" };
-    try {
-      const res = await fetch(`https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`, {
-        headers: { Authorization: `Bearer ${key}` },
-      });
-      const json = await res.json();
-      const s = String(json?.data?.status ?? "").toLowerCase();
-      const status: ChargeStatus =
-        s === "success" ? "confirmed" : s === "failed" || s === "abandoned" ? "failed" : "pending";
-      // Paystack reports in the minor unit.
-      const paid = Number(json?.data?.amount) / 100;
-      return {
-        status,
-        paidAmount: Number.isFinite(paid) && paid > 0 ? paid : undefined,
-        paidCurrency: json?.data?.currency,
-      };
-    } catch {
-      return { status: "pending" };
-    }
-  },
-};
-
 // -------------------------------------------------------------- Web Rabbit
 
 const WEBRABBIT_BASE = "https://api.webrabbitmedia.com";
@@ -613,12 +449,13 @@ const theteller: GatewayAdapter = {
 
       if (code === "600" || code === "979" || code === "999" || code === "909") {
         console.error("[theteller] configuration refused", { reference, transactionId, code, reason });
-        return { ok: false, error: "Deposits are being set up. Please try again shortly." };
+        return { ok: false, metadata, error: "Deposits are being set up. Please try again shortly." };
       }
 
       console.error("[theteller] charge refused", { reference, transactionId, code, reason });
       return {
         ok: false,
+        metadata,
         error:
           code === "105"
             ? "That amount was not accepted. Try a different amount."
@@ -700,9 +537,6 @@ const manual: GatewayAdapter = {
 const ADAPTERS: Record<Gateway, GatewayAdapter> = {
   flutterwave_momo: flutterwaveMomo,
   flutterwave_card: flutterwaveCard,
-  korapay,
-  moolre,
-  paystack,
   webrabbit,
   theteller,
   manual,

@@ -8,9 +8,6 @@ export type PayoutRail = "mobile" | "bank";
 export type Gateway =
   | "flutterwave_momo"
   | "flutterwave_card"
-  | "korapay"
-  | "moolre"
-  | "paystack"
   | "webrabbit"
   | "theteller"
   | "manual";
