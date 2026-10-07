@@ -629,7 +629,12 @@ export function settledAmount(outcome: ChargeOutcome, requested: number, currenc
   if (outcome.paidCurrency && outcome.paidCurrency.toUpperCase() !== String(currency).toUpperCase()) {
     return requested;
   }
-  return paid;
+  // Never more than was asked for. A rail reporting above the request is
+  // reporting the customer's debit with its own fee on top -- theTeller
+  // answers 1.02 on a GHS 1 charge -- and that fee is the cost of collection,
+  // not money that arrived for the player. Crediting it would hand out a few
+  // pesewas of the operator's money on every single deposit.
+  return Math.min(paid, requested);
 }
 
 export function adapterFor(gateway: Gateway): GatewayAdapter {
