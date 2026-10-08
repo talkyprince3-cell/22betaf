@@ -505,7 +505,12 @@ const theteller: GatewayAdapter = {
         error:
           code === "105"
             ? "That amount was not accepted. Try a different amount."
-            : "That payment did not go through. Try again.",
+            : // 100 is a generic decline from the network, and the common cause
+              // by far is a wallet that cannot cover the amount: the debit is
+              // refused outright, within seconds, without the customer ever
+              // being prompted. Measured on a live wallet -- GHS 10 prompted,
+              // GHS 50 and above were refused on the spot.
+              "That payment was declined. Check there is enough money in that mobile money wallet, then try again.",
       };
     } catch (err) {
       // A charge that never answered still rang the phone, so this is not a
