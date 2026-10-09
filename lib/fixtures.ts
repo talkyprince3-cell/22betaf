@@ -14,6 +14,7 @@ import { buildMarkets } from "./markets";
 import { matchClock, scoreFromTimeline } from "./clock";
 import { deriveMarkets, driftOdds, applyBoost, type Market } from "./odds";
 import { correctScoreMarket, goalCountMarkets } from "./scoreline";
+import { fetchEspnFixtures } from "./espn";
 
 /**
  * The public fixture feed.
@@ -93,7 +94,13 @@ export async function getFeed(): Promise<FeedMatch[]> {
     loadOverrides(),
   ]);
 
-  const merged = [...custom, ...upstream];
+  // ESPN only when API-Football gave us nothing. It is a real feed with real
+  // prices, but the primary one carries more markets per fixture, so it is a
+  // fallback rather than a supplement -- and showing both would put the same
+  // match on the board twice under two different ids.
+  const fallback = upstream.length === 0 ? await fetchEspnFixtures() : [];
+
+  const merged = [...custom, ...upstream, ...fallback];
 
   const withOverrides = merged.map((m) => {
     const o = overrides.get(m.id);
